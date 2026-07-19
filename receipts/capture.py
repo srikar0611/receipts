@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .analysis import parse_notable_commands, parse_test_executions
+from .card import count_explicit_commands
 from .integrity import add_integrity
 
 
@@ -257,6 +258,7 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
             "file_changes": sorted(observations.values(), key=lambda item: item["path"]),
             "test_executions": parse_test_executions(clean_text),
             "notable_commands": parse_notable_commands(clean_text),
+            "command_count": count_explicit_commands(clean_text),
         },
         "final": {"changed_files": changed},
         "artifacts": {"raw_transcript": raw_path.name, "clean_transcript": clean_path.name},

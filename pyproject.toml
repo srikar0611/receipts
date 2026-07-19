@@ -21,3 +21,5 @@ receipts = "receipts.cli:main"
 [tool.setuptools]
 packages = ["receipts"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .capture import capture
+from .card import load_manifest, render_card
 from .integrity import keygen, verify_manifest
 
 
@@ -22,6 +23,9 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--public-key", type=Path, help="Ed25519 public PEM path")
     key = subcommands.add_parser("keygen", help="create an optional Ed25519 keypair in .receipts/keys")
     key.add_argument("--output-dir", type=Path, default=Path(".receipts"), help="directory containing the keys folder")
+    card = subcommands.add_parser("card", help="render a Markdown Trust Card")
+    card.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
+    card.add_argument("--output", type=Path, help="write Markdown to this file as well as stdout")
     return parser
 
 
@@ -60,6 +64,17 @@ def main(argv: list[str] | None = None) -> int:
         ok, message = verify_manifest(manifest, candidate.parent, args.public_key)
         print(f"{'OK' if ok else 'FAILED'}: {message}")
         return 0 if ok else 1
+    if args.subcommand == "card":
+        try:
+            _path, manifest = load_manifest(args.session, Path.cwd())
+            card_text = render_card(manifest)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"receipts: cannot render card: {error}", file=sys.stderr)
+            return 2
+        if args.output:
+            args.output.write_text(card_text, encoding="utf-8")
+        print(card_text, end="")
+        return 0
     return 2
 
 

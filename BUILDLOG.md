@@ -22,3 +22,12 @@
 - **Test proof:** Six offline pytest tests passed, covering pytest/Jest/Go parser fixtures, incomplete output, timestamped progress, verification tiers, scope/risk hints, notable commands, and tamper detection.
 - **Acceptance proof:** A fresh fake-agent session yielded `verified` for `src/auth/login.py`, `indirectly_exercised` for `src/auth/session.py`, and `never_executed` for `src/billing/invoice.py`. It had exactly one heuristic scope-drift flag (`src/billing/invoice.py`) and `receipts verify` returned `OK: sha256 verified (unsigned)`.
 - **Optional dependency proof:** Without cryptography installed, `receipts keygen` fails safely and explicitly instructs `pip install cryptography`; core hashing and verification remain usable offline.
+
+## 2026-07-19 — M3 Trust Card and Action start
+
+- **Request:** Render reviewer-facing Trust Cards and create a sticky PR-comment Action.
+- **Decision:** The card presents only recorded manifest facts and uses the M2 statuses verbatim. It never re-evaluates a diff or asks a model for a conclusion.
+- **Decision:** The composite Action has no Node or third-party dependency. Its shell poster can inject a `curl` binary, so the POST/PATCH decision is locally testable without a GitHub request.
+- **Test isolation:** The root pytest configuration collects only Receipts' own `tests/` directory. The walkthrough sample is intentionally a separate mini-project, not part of the package test suite.
+- **Acceptance proof:** A fresh recorded session rendered the Trust Card with 11 visible commands, 6 changed files, two test runs, and the expected verified / indirect / NEVER EXECUTED rows. The card also displayed one scope flag, sensitive-path flags, and its truncated SHA-256 receipt.
+- **Action proof:** Nine tests passed. The local Action test injected a mock curl binary and asserted both `POST /issues/42/comments` (first comment) and `PATCH /issues/42/comments/99` (sticky update); no GitHub network request was made.
