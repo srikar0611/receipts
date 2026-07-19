@@ -1,0 +1,3 @@
+$ npm test -- --runInBand
+PASS src/login.test.js
+Tests:       2 passed, 2 total

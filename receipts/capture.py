@@ -15,17 +15,12 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .analysis import parse_notable_commands, parse_test_executions
+from .integrity import add_integrity
+
 
 TRANSCRIPT_LIMIT = 5 * 1024 * 1024
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-TEST_COMMAND_RE = re.compile(
-    r"(?:^|\s)(pytest|jest|vitest|go\s+test|cargo\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|make\s+test)(?:\s|$)"
-)
-TEST_SUMMARY_RE = re.compile(
-    r"(?:\d+\s+(?:passed|failed|skipped|tests?\s+passed)|"
-    r"Tests:\s+.*(?:passed|failed)|PASS\b|FAIL\b|ok\s+\S+|FAIL\s+\S+)",
-    re.IGNORECASE,
-)
 
 
 def utc_now() -> str:
@@ -115,36 +110,6 @@ def detect_agent(command: list[str]) -> str:
     if executable.startswith("cursor"):
         return "cursor"
     return "other"
-
-
-def parse_test_executions(transcript: str) -> list[dict[str, str]]:
-    """Conservative M1 recognizer; M2 expands fixtures and result semantics."""
-    events: list[dict[str, str]] = []
-    pending: dict[str, str] | None = None
-    last_timestamp = "unparsed"
-    for line in ANSI_RE.sub("", transcript).splitlines():
-        timestamp_match = re.match(r"^\[([^\]]+)\]\s?", line)
-        if timestamp_match:
-            last_timestamp = timestamp_match.group(1)
-        # A PTY read can contain several lines; only the first is prefixed in
-        # the raw transcript. Later lines therefore inherit that read's time.
-        timestamp = last_timestamp
-        clean = re.sub(r"^\[[^\]]+\]\s?", "", line).strip()
-        command = TEST_COMMAND_RE.search(clean)
-        if command:
-            if pending is not None:
-                pending["result"] = "unparsed"
-                events.append(pending)
-            pending = {"timestamp": timestamp, "command": clean, "result": "unparsed", "summary": ""}
-            continue
-        if pending and TEST_SUMMARY_RE.search(clean):
-            pending["summary"] = clean
-            pending["result"] = "failed" if re.search(r"\b(?:failed|fail)\b", clean, re.I) else "passed"
-            events.append(pending)
-            pending = None
-    if pending is not None:
-        events.append(pending)
-    return events
 
 
 def final_changed_files(cwd: Path, base_commit: str | None, observed_paths: list[str]) -> list[dict[str, Any]]:
@@ -265,10 +230,11 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
     final_snapshot = snapshot_git(cwd, ended_at)
     update_file_observations(snapshots, observations, final_snapshot)
     transcript_text = transcript.decode("utf-8", errors="replace")
+    clean_text = ANSI_RE.sub("", transcript_text)
     raw_path = receipts_dir / f"session-{session_id}.log"
     clean_path = receipts_dir / f"session-{session_id}.clean.log"
     raw_path.write_text(transcript_text, encoding="utf-8")
-    clean_path.write_text(ANSI_RE.sub("", transcript_text), encoding="utf-8")
+    clean_path.write_text(clean_text, encoding="utf-8")
     changed = final_changed_files(cwd, base_commit, list(observations))
     manifest: dict[str, Any] = {
         "schema_version": 1,
@@ -289,13 +255,17 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
         "timeline": {
             "git_snapshots": snapshots,
             "file_changes": sorted(observations.values(), key=lambda item: item["path"]),
-            "test_executions": parse_test_executions(transcript_text),
-            "notable_commands": [],
+            "test_executions": parse_test_executions(clean_text),
+            "notable_commands": parse_notable_commands(clean_text),
         },
         "final": {"changed_files": changed},
         "artifacts": {"raw_transcript": raw_path.name, "clean_transcript": clean_path.name},
     }
+    from .analysis import analyze_manifest
+
     manifest["meta"]["git_note_attached"] = attach_git_note(cwd, base_commit, session_id)
+    manifest["analysis"] = analyze_manifest(manifest)
+    add_integrity(manifest, receipts_dir)
     validate_manifest(manifest)
     manifest_path = receipts_dir / f"session-{session_id}.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
