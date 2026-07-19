@@ -47,3 +47,4 @@
 - **Request:** Ship README, demo script, Pages artifact, and clean-clone proof.
 - **Decision:** Judge quickstart begins with `receipts demo`, not agent capture, because it proves the thesis without credentials, setup, or network access.
 - **Decision:** Documentation states heuristic and observation boundaries alongside the pitch. The demo is compelling only if reviewers can see where certainty ends.
+- **Clean-clone proof:** On 2026-07-20, a fresh `git clone` into `/tmp/tmp.aQziKCoigA/receipts` created a new venv, completed `python -m pip install .` by building `receipts-0.1.0-py3-none-any.whl`, and ran `env -u OPENAI_API_KEY receipts demo` successfully. The installed wheel included the bundled manifest and sample tour, wrote `sample-replay.html`, and made no API request.
