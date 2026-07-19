@@ -41,3 +41,9 @@
 - **Dogfood proof:** `receipts run` wrapped `tools/fake_agent.sh` in a fresh Git repo and produced the bundled sample manifest and transcript. Offline `receipts demo` verified the manifest hash, printed the card, wrote `sample-replay.html`, and printed the labeled sample tour. Demo deliberately does not launch a browser, avoiding WSL/headless launcher noise; `receipts replay` retains that behavior.
 - **Acceptance proof:** Twelve offline tests passed. With `OPENAI_API_KEY` explicitly unset, the demo produced the expected verified / indirect / NEVER EXECUTED card rows, replay path, and sample tour; no network operation occurred.
 - **Live-tour limitation:** The stdlib Responses API path is implemented with `store: false`, but it is intentionally untested here because no API credits/key are available. Any live request error falls back to the explicitly labeled sample rather than failing the core workflow.
+
+## 2026-07-20 — M5 ship materials start
+
+- **Request:** Ship README, demo script, Pages artifact, and clean-clone proof.
+- **Decision:** Judge quickstart begins with `receipts demo`, not agent capture, because it proves the thesis without credentials, setup, or network access.
+- **Decision:** Documentation states heuristic and observation boundaries alongside the pitch. The demo is compelling only if reviewers can see where certainty ends.
