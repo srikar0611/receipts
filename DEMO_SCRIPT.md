@@ -27,7 +27,7 @@ Point to the scope-drift and sensitive-path flags, then the SHA-256 integrity re
 
 ## 1:05–1:35 — Replay
 
-Open the printed replay path in a browser. Scroll the dark timeline and show timestamped file changes beside test runs. Say: “This is static HTML with the manifest embedded—safe to attach to a PR or host on Pages.”
+Open the printed replay path in a browser. Scroll the dark timeline and show timestamped file changes beside test runs. Say: “This is static HTML with the manifest embedded—safe to attach to a PR or host on Pages. Our optional AWS launch serves this same curated artifact through private S3 and a public CloudFront HTTPS link.”
 
 ## 1:35–1:58 — Review tour
 

@@ -101,6 +101,12 @@ The composite Action finds the newest manifest and creates or updates one sticky
 
 See [`examples/receipts-pr.yml`](examples/receipts-pr.yml). The action’s POST and PATCH behavior is covered by an offline mocked-API test.
 
+## Optional: public AWS demo
+
+Receipts does not need a cloud backend. If you want a judge-ready public link, M6 deploys **only** the curated static `docs/` site through a private S3 bucket and CloudFront HTTPS. The S3 origin remains private; GitHub Actions receives short-lived AWS credentials through a role restricted to one exact OIDC subject, rather than using stored AWS access keys.
+
+The full cost-guardrail, CloudFormation, GitHub OIDC, verification, and cleanup guide is in [`AWS_DEPLOY.md`](AWS_DEPLOY.md). Do not deploy raw `.receipts/` content or user session data to this public showcase.
+
 ## Comparison
 
 | Approach | Primary question | What Receipts adds |
@@ -127,6 +133,7 @@ We worked milestone by milestone and committed each one separately:
 2. **Deterministic analysis:** GPT-5.6 designed the three-tier verification gap and conservative parser fixtures. A real PTY transcript exposed timestamp injection around pytest progress; the parser was fixed against the ANSI-stripped transcript and regression-tested.
 3. **Reviewer artifacts:** GPT-5.6 rendered the card from recorded facts only and made sticky-comment create/update logic mockable without calling GitHub.
 4. **Demo:** GPT-5.6 analyzed the real dogfooded session to write the sample tour. It deliberately labels the output as generated with GPT-5.6, rather than pretending an offline call was live.
+5. **Public demo (optional):** GPT-5.6 kept the live showcase separate from the product's core. It deploys only the curated static demo through private S3, CloudFront HTTPS, and a least-privilege GitHub OIDC role—no server, database, or long-lived AWS key.
 
 The full chronological decision record is in [`BUILDLOG.md`](BUILDLOG.md).
 

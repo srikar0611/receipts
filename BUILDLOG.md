@@ -48,3 +48,14 @@
 - **Decision:** Judge quickstart begins with `receipts demo`, not agent capture, because it proves the thesis without credentials, setup, or network access.
 - **Decision:** Documentation states heuristic and observation boundaries alongside the pitch. The demo is compelling only if reviewers can see where certainty ends.
 - **Clean-clone proof:** On 2026-07-20, a fresh `git clone` into `/tmp/tmp.aQziKCoigA/receipts` created a new venv, completed `python -m pip install .` by building `receipts-0.1.0-py3-none-any.whl`, and ran `env -u OPENAI_API_KEY receipts demo` successfully. The installed wheel included the bundled manifest and sample tour, wrote `sample-replay.html`, and made no API request.
+
+## 2026-07-20 — M6 AWS public-demo launch start
+
+- **Request:** Use AWS credits to make Receipts more judge-visible without turning the offline-first CLI into a hosted platform.
+- **Decision:** Publish only the curated `docs/` artifacts through a private S3 bucket behind CloudFront HTTPS. The product recorder, verifier, card, replay, and bundled demo remain local and require no AWS account at runtime.
+- **Security decision:** Use GitHub Actions OIDC with a least-privilege role instead of long-lived AWS access keys. The template requires the exact GitHub OIDC `sub` claim as an input, so a different repository or branch cannot assume the role by accident.
+- **Current GitHub caveat:** Repositories created after 15 July 2026 can use immutable OIDC subjects containing owner and repository IDs. The deployment guide makes this explicit rather than assuming the older `repo:owner/repo` format.
+- **Cost decision:** No EC2, RDS, NAT Gateway, ECS, database, or model endpoint. A $5 monthly budget and forecast alerts are the first setup step; AWS billing alerts are monitoring, not an instant circuit breaker.
+- **GPT-5.6 reasoning contribution:** Chose a private-origin static showcase because it gives judges a public HTTPS replay while preserving the central claim that Receipts works with zero runtime network dependency.
+- **Acceptance proof:** The expanded offline suite passed on the attached WSL environment: `14 passed in 2.61s`. The M6 structural test verifies public S3 access blocking, OAC-only origin configuration, HTTPS redirect, an exact OIDC subject condition, and the absence of long-lived AWS credential variables in the deployment workflow. JSON syntax and the same security invariants were also checked locally before the WSL run.
+- **Deployment boundary:** No AWS resource was created while building M6. The user must intentionally run the documented CloudFormation deployment after checking their credit terms and creating cost alerts; live CloudFront validation belongs to that account-scoped setup.

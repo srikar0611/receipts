@@ -1,0 +1,318 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Receipts public demo: private S3 origin, CloudFront HTTPS, and GitHub Actions OIDC deploy role.",
+  "Parameters": {
+    "GitHubOidcSubject": {
+      "Type": "String",
+      "Description": "Exact GitHub Actions OIDC sub claim allowed to deploy. Example: repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/master",
+      "AllowedPattern": "^repo:.+$",
+      "ConstraintDescription": "must be an exact GitHub Actions OIDC subject beginning with repo:"
+    },
+    "ExistingGitHubOidcProviderArn": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional ARN of an existing token.actions.githubusercontent.com IAM OIDC provider. Leave empty to create one."
+    },
+    "CloudFrontPriceClass": {
+      "Type": "String",
+      "Default": "PriceClass_200",
+      "AllowedValues": [
+        "PriceClass_100",
+        "PriceClass_200",
+        "PriceClass_All"
+      ],
+      "Description": "CloudFront geographic price class. PriceClass_200 is a low-cost default with broader coverage than PriceClass_100."
+    }
+  },
+  "Conditions": {
+    "CreateGitHubOidcProvider": {
+      "Fn::Equals": [
+        {
+          "Ref": "ExistingGitHubOidcProviderArn"
+        },
+        ""
+      ]
+    }
+  },
+  "Resources": {
+    "DemoBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "receipts"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "cloudformation"
+          }
+        ]
+      }
+    },
+    "DemoOriginAccessControl": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": {
+            "Fn::Sub": "${AWS::StackName}-receipts-demo-oac"
+          },
+          "Description": "Private S3 origin for the Receipts public demo.",
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      }
+    },
+    "DemoDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Comment": "Receipts public demo",
+          "DefaultRootObject": "index.html",
+          "Enabled": true,
+          "HttpVersion": "http2and3",
+          "IPV6Enabled": true,
+          "PriceClass": {
+            "Ref": "CloudFrontPriceClass"
+          },
+          "ViewerCertificate": {
+            "CloudFrontDefaultCertificate": true
+          },
+          "Origins": [
+            {
+              "Id": "ReceiptsPrivateS3Origin",
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "DemoBucket",
+                  "RegionalDomainName"
+                ]
+              },
+              "OriginAccessControlId": {
+                "Fn::GetAtt": [
+                  "DemoOriginAccessControl",
+                  "Id"
+                ]
+              },
+              "S3OriginConfig": {
+                "OriginAccessIdentity": ""
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "ReceiptsPrivateS3Origin",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": [
+              "GET",
+              "HEAD"
+            ],
+            "CachedMethods": [
+              "GET",
+              "HEAD"
+            ],
+            "Compress": true,
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6"
+          }
+        }
+      }
+    },
+    "DemoBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "DemoBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowCloudFrontReadOnly",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+              },
+              "Action": "s3:GetObject",
+              "Resource": {
+                "Fn::Sub": "${DemoBucket.Arn}/*"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${DemoDistribution}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "GitHubOidcProvider": {
+      "Condition": "CreateGitHubOidcProvider",
+      "Type": "AWS::IAM::OIDCProvider",
+      "Properties": {
+        "Url": "https://token.actions.githubusercontent.com",
+        "ClientIdList": [
+          "sts.amazonaws.com"
+        ],
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "receipts"
+          }
+        ]
+      }
+    },
+    "GitHubDemoDeployRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "Description": "Least-privilege GitHub Actions role for publishing the curated Receipts demo.",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": {
+                  "Fn::If": [
+                    "CreateGitHubOidcProvider",
+                    {
+                      "Ref": "GitHubOidcProvider"
+                    },
+                    {
+                      "Ref": "ExistingGitHubOidcProviderArn"
+                    }
+                  ]
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                  "token.actions.githubusercontent.com:sub": {
+                    "Ref": "GitHubOidcSubject"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "PublishReceiptsDemo",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ListOnlyThisDemoBucket",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "DemoBucket",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Sid": "PublishOnlyThisDemoBucket",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:DeleteObject",
+                    "s3:GetObject",
+                    "s3:PutObject"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${DemoBucket.Arn}/*"
+                  }
+                },
+                {
+                  "Sid": "InvalidateOnlyThisDistribution",
+                  "Effect": "Allow",
+                  "Action": "cloudfront:CreateInvalidation",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${DemoDistribution}"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "receipts"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "DemoUrl": {
+      "Description": "Public HTTPS URL for the deployed Receipts demo.",
+      "Value": {
+        "Fn::Sub": "https://${DemoDistribution.DomainName}"
+      }
+    },
+    "DemoBucketName": {
+      "Description": "Private S3 bucket that receives only curated docs/ assets.",
+      "Value": {
+        "Ref": "DemoBucket"
+      }
+    },
+    "CloudFrontDistributionId": {
+      "Description": "CloudFront distribution ID used for cache invalidation.",
+      "Value": {
+        "Ref": "DemoDistribution"
+      }
+    },
+    "GitHubDeployRoleArn": {
+      "Description": "Role ARN for the GitHub Actions OIDC deployment workflow.",
+      "Value": {
+        "Fn::GetAtt": [
+          "GitHubDemoDeployRole",
+          "Arn"
+        ]
+      }
+    },
+    "GitHubOidcProviderArn": {
+      "Description": "OIDC provider used by the deployment role.",
+      "Value": {
+        "Fn::If": [
+          "CreateGitHubOidcProvider",
+          {
+            "Ref": "GitHubOidcProvider"
+          },
+          {
+            "Ref": "ExistingGitHubOidcProviderArn"
+          }
+        ]
+      }
+    }
+  }
+}

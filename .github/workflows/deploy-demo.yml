@@ -1,0 +1,53 @@
+name: Deploy Receipts demo to AWS
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+      - ".github/workflows/deploy-demo.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: receipts-demo-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Publish curated demo
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      AWS_DEMO_BUCKET: ${{ vars.AWS_DEMO_BUCKET }}
+      AWS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require repository configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for required in AWS_REGION AWS_ROLE_TO_ASSUME AWS_DEMO_BUCKET AWS_CLOUDFRONT_DISTRIBUTION_ID; do
+            test -n "${!required}" || { echo "Missing GitHub Actions variable: $required" >&2; exit 1; }
+          done
+
+      - name: Obtain short-lived AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Publish only the curated static demo
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws s3 sync docs/ "s3://$AWS_DEMO_BUCKET/" --delete --cache-control "no-cache" --only-show-errors
+          aws cloudfront create-invalidation \
+            --distribution-id "$AWS_CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths "/*" \
+            --no-cli-pager
