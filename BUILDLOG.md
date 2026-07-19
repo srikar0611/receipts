@@ -67,3 +67,11 @@
 - **Evidence discipline:** Every metric and verification label shown on the page comes from the bundled real sample manifest: 11 commands, 6 changed files, 2 passing pytest runs, and one `src/billing/invoice.py` `NEVER EXECUTED` gap. No synthetic risk score or fictional telemetry was added.
 - **UX decision:** Use a high-contrast dark developer-tool surface with structured panels, cyan only for actions/evidence, and red only for the observed verification gap. The page has no fonts, scripts, analytics, or runtime dependencies.
 - **GPT-5.6 reasoning contribution:** Center the reviewer’s first question—“what did the agent not prove?”—instead of burying the differentiator behind a generic marketing hero.
+
+## 2026-07-20 — M8 interactive evidence workbench start
+
+- **Request:** The public page was visually improved but still felt like a passive static brochure; the replay needed to demonstrate product capability rather than merely display a report.
+- **Decision:** Treat static HTML as the portable delivery container, not the interaction model. The landing page now reads a published, real sample manifest and independently computes its SHA-256 in the browser. The replay renderer becomes a single-file forensic workbench with filtering, timeline scrubbing, event inspection, local receipt loading, manifest download, and browser-side integrity checking.
+- **Evidence discipline:** The published JSON is a semantic copy of the bundled real recorded manifest and is tested against its SHA-256. The key red finding is calculated from timestamps: `src/billing/invoice.py` was observed 3.3 seconds after the final passing pytest run, with no later test execution recorded.
+- **Privacy decision:** “Load another receipt” uses only the browser File API. There is no upload endpoint, account, server-side parser, or telemetry.
+- **GPT-5.6 reasoning contribution:** Reframed the jury question: a portable artifact is stronger when it can be independently inspected and verified without a service that could modify the evidence after capture.

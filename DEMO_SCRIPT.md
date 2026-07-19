@@ -2,7 +2,7 @@
 
 ## 0:00–0:15 — Hook
 
-Show the public landing page’s Trust Snapshot, then say: “The reviewer does not need another opinion about this diff. They need the receipts: what the agent changed, what it ran, and what it never executed.” Point to the recorded **6 files / 2 test runs / 1 NEVER EXECUTED** signal, then open the replay from the primary button.
+Show the public landing page’s Trust Snapshot, then say: “The reviewer does not need another opinion about this diff. They need the receipts: what the agent changed, what it ran, and what it never executed.” Point to the recorded **6 files / 2 test runs / 1 NEVER EXECUTED** signal. Click **Verify this receipt** to show the browser independently recomputing the SHA-256, then open the forensic replay from the primary button.
 
 ## 0:15–0:35 — Zero-setup proof
 
@@ -27,7 +27,7 @@ Point to the scope-drift and sensitive-path flags, then the SHA-256 integrity re
 
 ## 1:05–1:35 — Replay
 
-Open the printed replay path in a browser. Scroll the dark timeline and show timestamped file changes beside test runs. Say: “This is static HTML with the manifest embedded—safe to attach to a PR or host on Pages. Our optional AWS launch serves this same curated artifact through private S3 and a public CloudFront HTTPS link.”
+Open the printed replay path in a browser. Click **After last test** to reduce the timeline to the one red billing change, then point to its inspector: `tests after edit: 0`, scope drift heuristic, and sensitive billing path. Say: “This is a portable interactive artifact with the manifest embedded—safe to attach to a PR or host on Pages. It filters and verifies evidence locally; our optional AWS launch only serves the curated file through private S3 and CloudFront HTTPS.”
 
 ## 1:35–1:58 — Review tour
 

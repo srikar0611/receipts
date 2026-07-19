@@ -13,7 +13,11 @@ def test_replay_is_single_file_with_embedded_manifest() -> None:
     html = render_replay(MANIFEST)
     assert "application/json" in html
     assert '"session_id": "demo"' in html
-    assert "Evidence timeline" in html
+    assert "Observed event timeline" in html
+    assert "Verify in browser" in html
+    assert "Load another receipt" in html
+    assert "Static delivery. Interactive evidence." in html
+    assert "crypto.subtle.digest" in html
 
 
 def test_tour_falls_back_without_key(monkeypatch) -> None:

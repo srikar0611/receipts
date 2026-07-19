@@ -6,6 +6,8 @@ Receipts is an open, agent-agnostic provenance layer for AI-generated code. It w
 
 See the deployed, recorded sample at [receipts-demo](https://d2hw2ynyop1ius.cloudfront.net/). The public page is static; Receipts itself remains usable offline.
 
+The demo is intentionally **interactive without a backend**: its landing page recomputes the published sample manifest's SHA-256 in the browser, and the replay can filter evidence, scrub the observed timeline, inspect individual events, and load another local Receipts manifest without uploading it anywhere. Static delivery keeps the artifact portable; the captured session facts are the product.
+
 ## Judge quickstart — under 60 seconds
 
 Receipts demo needs no API key and makes no network request.
