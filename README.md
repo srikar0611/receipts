@@ -4,6 +4,8 @@
 
 Receipts is an open, agent-agnostic provenance layer for AI-generated code. It wraps a coding-agent terminal session, records the commands, changed files, and test evidence it can observe, then produces an integrity-protected review artifact. The headline finding is deliberately simple: **what did the agent write but never execute?**
 
+See the deployed, recorded sample at [receipts-demo](https://d2hw2ynyop1ius.cloudfront.net/). The public page is static; Receipts itself remains usable offline.
+
 ## Judge quickstart — under 60 seconds
 
 Receipts demo needs no API key and makes no network request.

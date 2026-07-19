@@ -59,3 +59,11 @@
 - **GPT-5.6 reasoning contribution:** Chose a private-origin static showcase because it gives judges a public HTTPS replay while preserving the central claim that Receipts works with zero runtime network dependency.
 - **Acceptance proof:** The expanded offline suite passed on the attached WSL environment: `14 passed in 2.61s`. The M6 structural test verifies public S3 access blocking, OAC-only origin configuration, HTTPS redirect, an exact OIDC subject condition, and the absence of long-lived AWS credential variables in the deployment workflow. JSON syntax and the same security invariants were also checked locally before the WSL run.
 - **Deployment boundary:** No AWS resource was created while building M6. The user must intentionally run the documented CloudFormation deployment after checking their credit terms and creating cost alerts; live CloudFront validation belongs to that account-scoped setup.
+
+## 2026-07-20 — M7 public-demo experience start
+
+- **Request:** The deployed page looked like a sparse placeholder rather than a convincing product experience for judges.
+- **Decision:** Replace the single-link splash with a responsive, dependency-free evidence-first landing page. Its focal point is the recorded Trust Snapshot, followed by the concrete Trust Card, workflow, and replay path.
+- **Evidence discipline:** Every metric and verification label shown on the page comes from the bundled real sample manifest: 11 commands, 6 changed files, 2 passing pytest runs, and one `src/billing/invoice.py` `NEVER EXECUTED` gap. No synthetic risk score or fictional telemetry was added.
+- **UX decision:** Use a high-contrast dark developer-tool surface with structured panels, cyan only for actions/evidence, and red only for the observed verification gap. The page has no fonts, scripts, analytics, or runtime dependencies.
+- **GPT-5.6 reasoning contribution:** Center the reviewer’s first question—“what did the agent not prove?”—instead of burying the differentiator behind a generic marketing hero.

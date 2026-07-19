@@ -2,7 +2,7 @@
 
 ## 0:00–0:15 — Hook
 
-Show a large AI-generated PR diff, then say: “The reviewer does not need another opinion about this diff. They need the receipts: what the agent changed, what it ran, and what it never executed.”
+Show the public landing page’s Trust Snapshot, then say: “The reviewer does not need another opinion about this diff. They need the receipts: what the agent changed, what it ran, and what it never executed.” Point to the recorded **6 files / 2 test runs / 1 NEVER EXECUTED** signal, then open the replay from the primary button.
 
 ## 0:15–0:35 — Zero-setup proof
 
