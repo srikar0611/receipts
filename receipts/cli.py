@@ -9,7 +9,10 @@ from pathlib import Path
 
 from .capture import capture
 from .card import load_manifest, render_card
+from .demo import run_demo
 from .integrity import keygen, verify_manifest
+from .replay import write_replay
+from .tour import get_tour
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,6 +29,13 @@ def build_parser() -> argparse.ArgumentParser:
     card = subcommands.add_parser("card", help="render a Markdown Trust Card")
     card.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
     card.add_argument("--output", type=Path, help="write Markdown to this file as well as stdout")
+    replay = subcommands.add_parser("replay", help="write and open a static HTML session replay")
+    replay.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
+    replay.add_argument("--output", type=Path, help="HTML output path")
+    replay.add_argument("--no-open", action="store_true", help="do not request the system browser")
+    tour = subcommands.add_parser("tour", help="print a GPT review tour or offline sample")
+    tour.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
+    subcommands.add_parser("demo", help="run the bundled offline judge demo")
     return parser
 
 
@@ -74,6 +84,32 @@ def main(argv: list[str] | None = None) -> int:
         if args.output:
             args.output.write_text(card_text, encoding="utf-8")
         print(card_text, end="")
+        return 0
+    if args.subcommand == "replay":
+        try:
+            manifest_path, manifest = load_manifest(args.session, Path.cwd())
+            output = args.output or manifest_path.with_suffix(".html")
+            output = write_replay(manifest, output, open_browser=not args.no_open)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"receipts: cannot create replay: {error}", file=sys.stderr)
+            return 2
+        print(f"Replay written: {output}")
+        return 0
+    if args.subcommand == "tour":
+        try:
+            _path, manifest = load_manifest(args.session, Path.cwd())
+            label, tour_text = get_tour(manifest)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"receipts: cannot create tour: {error}", file=sys.stderr)
+            return 2
+        print(f"## Review tour — {label}\n\n{tour_text}")
+        return 0
+    if args.subcommand == "demo":
+        try:
+            run_demo(Path.cwd())
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"receipts: cannot run demo: {error}", file=sys.stderr)
+            return 2
         return 0
     return 2
 

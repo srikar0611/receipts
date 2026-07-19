@@ -21,5 +21,8 @@ receipts = "receipts.cli:main"
 [tool.setuptools]
 packages = ["receipts"]
 
+[tool.setuptools.package-data]
+receipts = ["demo_data/*.json", "demo_data/*.md", "demo_data/*.log"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

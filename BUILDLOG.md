@@ -31,3 +31,13 @@
 - **Test isolation:** The root pytest configuration collects only Receipts' own `tests/` directory. The walkthrough sample is intentionally a separate mini-project, not part of the package test suite.
 - **Acceptance proof:** A fresh recorded session rendered the Trust Card with 11 visible commands, 6 changed files, two test runs, and the expected verified / indirect / NEVER EXECUTED rows. The card also displayed one scope flag, sensitive-path flags, and its truncated SHA-256 receipt.
 - **Action proof:** Nine tests passed. The local Action test injected a mock curl binary and asserted both `POST /issues/42/comments` (first comment) and `PATCH /issues/42/comments/99` (sticky update); no GitHub network request was made.
+
+## 2026-07-19 — M4 replay, tour, and demo start
+
+- **Request:** Create a replay, a GPT-5.6 review tour with offline fallback, and a zero-setup demo.
+- **Decision:** Replay is a single local HTML file with the manifest embedded as JSON and client-side rendering only. It works without a server, build step, or network access.
+- **Decision:** `tour` uses the Responses endpoint only when `OPENAI_API_KEY` exists. It sends `store: false`; otherwise (or on an API failure) it labels and prints a bundled GPT-5.6 sample rather than fabricating a live result.
+- **GPT-5.6 reasoning contribution:** Wrote the bundled tour by analyzing the real fake-agent evidence pattern: billing is unexecuted and scope-drifted; session has only indirect coverage; login has direct focused coverage.
+- **Dogfood proof:** `receipts run` wrapped `tools/fake_agent.sh` in a fresh Git repo and produced the bundled sample manifest and transcript. Offline `receipts demo` verified the manifest hash, printed the card, wrote `sample-replay.html`, and printed the labeled sample tour. Demo deliberately does not launch a browser, avoiding WSL/headless launcher noise; `receipts replay` retains that behavior.
+- **Acceptance proof:** Twelve offline tests passed. With `OPENAI_API_KEY` explicitly unset, the demo produced the expected verified / indirect / NEVER EXECUTED card rows, replay path, and sample tour; no network operation occurred.
+- **Live-tour limitation:** The stdlib Responses API path is implemented with `store: false`, but it is intentionally untested here because no API credits/key are available. Any live request error falls back to the explicitly labeled sample rather than failing the core workflow.
