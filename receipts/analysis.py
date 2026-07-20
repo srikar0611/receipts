@@ -9,7 +9,7 @@ from typing import Any
 
 
 TEST_COMMAND_RE = re.compile(
-    r"(?:^|\s)(?:python(?:3)?\s+-m\s+)?(pytest|jest|vitest|go\s+test|cargo\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|make\s+test)(?:\s|$)",
+    r"(?:^|\s)(?:python(?:3)?\s+-m\s+)?(pytest|unittest|jest|vitest|go\s+test|cargo\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|make\s+test)(?:\s|$)",
     re.IGNORECASE,
 )
 PROMPT_RE = re.compile(r"^(?:\$|\+|#|>|PS\s+[^>]+>)\s*")
@@ -51,6 +51,10 @@ def result_from_summary(line: str) -> str | None:
     lower = line.lower()
     if re.search(r"\b(?:\d+\s+failed|failures?:|fail\s+\S+|test result:\s+failed)\b", lower):
         return "failed"
+    # Python's standard-library unittest runner prints a bare ``OK`` after its
+    # summary. It is explicit runner output, so it is safe to record as passed.
+    if lower == "ok":
+        return "passed"
     if re.search(r"\b(?:\d+\s+passed|tests:\s+.*\bpassed\b|pass\s+\S+|ok\s+\S+|test result:\s+ok)\b", lower):
         return "passed"
     return None

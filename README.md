@@ -4,13 +4,13 @@
 
 Receipts is an open, agent-agnostic provenance layer for AI-generated code. It wraps a coding-agent terminal session, records the commands, changed files, and test evidence it can observe, then produces an integrity-protected review artifact. The headline finding is deliberately simple: **what did the agent write but never execute?**
 
-See the deployed, recorded sample at [receipts-demo](https://d2hw2ynyop1ius.cloudfront.net/). The public page is static; Receipts itself remains usable offline.
+See the deployed, recorded sample at [receipts-demo](https://d2hw2ynyop1ius.cloudfront.net/). It is intentionally a **recorded showcase**, not a hosted simulator: run `receipts demo --live` to make a new receipt on your own machine.
 
 The demo is intentionally **interactive without a backend**: its landing page recomputes the published sample manifest's SHA-256 in the browser, and the replay can filter evidence, scrub the observed timeline, inspect individual events, and load another local Receipts manifest without uploading it anywhere. Static delivery keeps the artifact portable; the captured session facts are the product.
 
 ## Judge quickstart — under 60 seconds
 
-Receipts demo needs no API key and makes no network request.
+The recorded showcase needs no API key and makes no network request.
 
 ```bash
 git clone <your-fork-url> receipts
@@ -22,6 +22,24 @@ receipts demo
 ```
 
 You will see a Trust Card, a path to a local static replay HTML file, and a clearly labeled **sample output (generated with GPT-5.6)** review tour. The bundled manifest was recorded by actually wrapping [`tools/fake_agent.sh`](tools/fake_agent.sh), not written by hand.
+
+### Fresh proof — not the bundled sample
+
+Run this immediately after the quickstart (about 12 seconds):
+
+```bash
+receipts demo --live
+```
+
+This creates a retained Git repository under `.receipts/live-proofs/`, wraps a dependency-free deterministic agent through the same POSIX PTY recorder as `receipts run`, and emits a **new** session ID and SHA-256 every time. Its standard-library `unittest` test run is real; its billing edit is intentionally made after the final test. The command prints `Evidence gate: BLOCKED` as the expected proof that the policy caught the untested sensitive change, while `demo --live` itself exits successfully.
+
+To demonstrate the CI exit code separately, copy the printed manifest path:
+
+```bash
+receipts verify /path/to/.receipts/session-<id>.json
+receipts gate /path/to/.receipts/session-<id>.json --sensitive-only
+# exits 1: the demo's intentional billing change is NEVER EXECUTED
+```
 
 ## 60-second pitch
 
@@ -37,6 +55,7 @@ receipts run --task "fix the login redirect bug" -- codex "fix the login redirec
 receipts card
 receipts replay
 receipts verify session-<id>
+receipts gate session-<id>
 ```
 
 `run` accepts any executable: `codex`, `claude`, a shell script, or another coding agent. It records the exact argv and labels the executable as `codex`, `claude`, `cursor`, or `other`.
@@ -79,7 +98,7 @@ Each `.receipts/session-<id>.json` contains:
 
 - session metadata: timestamps, cwd, full argv, agent label, branch, base commit, task;
 - Git snapshots and per-file first/last observed changes;
-- parsed test invocations and results for pytest, Jest, Vitest, Go, Cargo, npm/pnpm/yarn, and Make;
+- parsed test invocations and results for pytest, Python unittest, Jest, Vitest, Go, Cargo, npm/pnpm/yarn, and Make;
 - notable Git, package-install, and `curl`/`wget` commands;
 - final changed-file stats, analysis, hash, and optional signature.
 
@@ -105,6 +124,18 @@ The composite Action finds the newest manifest and creates or updates one sticky
 
 See [`examples/receipts-pr.yml`](examples/receipts-pr.yml). The action’s POST and PATCH behavior is covered by an offline mocked-API test.
 
+To make the receipt an enforceable merge check, keep the sticky comment and add the optional gate:
+
+```yaml
+- uses: your-org/receipts/action@v0
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    enforce: true
+    enforce-sensitive-only: true
+```
+
+The Action posts/updates the Trust Card first, then fails the job when a **sensitive** changed source file is recorded as `NEVER EXECUTED`. This is a narrow evidence policy, not a claim that all other changes are safe or behaviorally covered.
+
 ## Optional: public AWS demo
 
 Receipts does not need a cloud backend. If you want a judge-ready public link, M6 deploys **only** the curated static `docs/` site through a private S3 bucket and CloudFront HTTPS. The S3 origin remains private; GitHub Actions receives short-lived AWS credentials through a role restricted to one exact OIDC subject, rather than using stored AWS access keys.
@@ -127,6 +158,7 @@ The full cost-guardrail, CloudFormation, GitHub OIDC, verification, and cleanup 
 - **Verification is convention-based.** Mapping covers `test_x.py ↔ x.py`, `x.test.ts`/`x.spec.ts ↔ x.ts`, and `x_test.go ↔ x.go`; indirect coverage is not a proof of behavioral coverage.
 - **Scope drift is a heuristic.** It uses task/path tokens with a small `login ↔ auth` alias, and must be read as a prompt for review—not an authorization decision.
 - **Integrity proves manifest mutation, not every external fact.** Hashing makes later manifest edits detectable; it cannot prove an unobserved process or side effect never occurred.
+- **The evidence gate is deliberately narrow.** It blocks changed files with no passing test observed after their final edit; `--sensitive-only` limits that further to recorded sensitive-path hints. It does not prove correctness or replace human review.
 - **Live tour is optional.** No key means no network call and a labeled bundled sample; the live API branch is not exercised by the offline demo.
 
 ## How Codex & GPT-5.6 built this

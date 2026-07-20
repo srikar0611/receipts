@@ -1,49 +1,70 @@
-# Receipts demo video script (2:35)
+# Receipts demo video script (2:45)
 
-## 0:00–0:15 — Hook
+## 0:00–0:18 — Start with fresh proof
 
-Show the public landing page’s Trust Snapshot, then say: “The reviewer does not need another opinion about this diff. They need the receipts: what the agent changed, what it ran, and what it never executed.” Point to the recorded **6 files / 2 test runs / 1 NEVER EXECUTED** signal. Click **Verify this receipt** to show the browser independently recomputing the SHA-256, then open the forensic replay from the primary button.
-
-## 0:15–0:35 — Zero-setup proof
-
-In a fresh terminal, run:
+In a clean WSL/macOS/Linux terminal, run:
 
 ```bash
 python -m pip install .
-receipts demo
+receipts demo --live
 ```
 
-Point out: no API key, no server, no login, no network requirement for the demo.
+Say: “This is not replaying the website’s sample. Receipts just created a fresh Git repository, wrapped an agent in a real PTY, and recorded a new session.” Point to the newly printed workspace, manifest path, and `Integrity: OK` line.
 
-## 0:35–1:05 — Trust Card
+## 0:18–0:38 — Let the policy stop the bad change
 
-Show the printed card. Read the three lines quickly:
+Point to the final `Evidence gate: BLOCKED` section. Say: “The command itself succeeded—the block is the result we wanted. The agent changed a sensitive billing file after its final passing test. Receipts did not guess that it was unsafe; it observed that no test ran afterward.”
 
-- `src/auth/login.py` is directly verified by its mapped pytest file.
+Copy the manifest path and show the real CI exit code:
+
+```bash
+receipts verify /path/to/.receipts/session-<id>.json
+receipts gate /path/to/.receipts/session-<id>.json --sensitive-only
+echo $?
+```
+
+Explain that `1` means the merge policy would block, while the sticky card still gives the reviewer the facts.
+
+## 0:38–1:05 — Show tamper resistance
+
+Open the live proof’s replay path. Click **Verify in browser** to show `sha256 verified in this browser`. Then click **Test hash resistance**. The viewer alters only an in-memory demo copy, immediately shows `sha256 mismatch`, and offers **Reset recorded receipt**.
+
+Say: “The viewer has no server and no upload endpoint. The receipt carries its own evidence, and a later edit is detectable.”
+
+## 1:05–1:28 — Read the Trust Card
+
+Return to the printed card and read the three rows quickly:
+
+- `src/auth/login.py` is directly verified by its convention-mapped test.
 - `src/auth/session.py` is only indirectly exercised.
 - `src/billing/invoice.py` is red: it changed after the final test, so it was never executed.
 
-Point to the scope-drift and sensitive-path flags, then the SHA-256 integrity receipt.
+Point to the scope-drift and sensitive-path flags. Emphasize that scope drift is labeled as a heuristic.
 
-## 1:05–1:35 — Replay
+## 1:28–1:50 — The public evidence workbench
 
-Open the printed replay path in a browser. Click **After last test** to reduce the timeline to the one red billing change, then point to its inspector: `tests after edit: 0`, scope drift heuristic, and sensitive billing path. Say: “This is a portable interactive artifact with the manifest embedded—safe to attach to a PR or host on Pages. It filters and verifies evidence locally; our optional AWS launch only serves the curated file through private S3 and CloudFront HTTPS.”
+Open the deployed page. Say: “This page is a recorded showcase, not a hosted simulator.” Point to the **Fresh proof** panel and the exact `receipts demo --live` command.
 
-## 1:35–1:58 — Review tour
+Open the forensic replay, click **After last test**, and show the one red billing change with `tests after edit: 0`. Scrub the timeline or choose a different evidence filter.
 
-Show the offline sample tour. Say: “With no key, this is clearly marked sample output generated with GPT-5.6. With a key, `receipts tour` asks GPT-5.6 for the same risk-ranked review tour. The recorder never depends on the API.”
+## 1:50–2:15 — Real pull-request enforcement
 
-## 1:58–2:20 — Real integration
+Show this Action configuration:
 
-Show:
-
-```bash
-receipts run --task "fix the login bug" -- codex "fix the login bug"
-receipts card
+```yaml
+- uses: your-org/receipts/action@v0
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    enforce: true
+    enforce-sensitive-only: true
 ```
 
-Then show [`examples/receipts-pr.yml`](examples/receipts-pr.yml) and explain that the composite Action posts one sticky Trust Card comment, updating it on later commits.
+Say: “The Action posts or updates the Trust Card first, then makes a sensitive `NEVER EXECUTED` finding fail the job. That is a review policy built from the agent’s recorded session facts—not another LLM opinion about the diff.”
 
-## 2:20–2:35 — Close
+## 2:15–2:30 — Optional GPT review tour
 
-“Receipts is agent-agnostic evidence over vibes. Before merging an AI change, know what it wrote, what it ran, and what it never executed.”
+Run `receipts tour` or point to the demo output. Say: “Without a key, this is explicitly labeled sample output generated with GPT-5.6. With a key, it can provide a risk-ranked review tour. Capture, hash verification, replay, and the evidence gate stay offline.”
+
+## 2:30–2:45 — Close
+
+“Receipts is agent-agnostic evidence over vibes. Before merging AI code, know what it wrote, what it ran, what it never executed—and enforce that fact when it matters.”

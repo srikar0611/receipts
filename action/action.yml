@@ -12,6 +12,14 @@ inputs:
     description: Render the card and print the API operation without posting it.
     required: false
     default: "false"
+  enforce:
+    description: Fail the workflow after posting the card when the evidence policy blocks a file.
+    required: false
+    default: "false"
+  enforce-sensitive-only:
+    description: When enforcing, block only sensitive paths marked NEVER EXECUTED.
+    required: false
+    default: "true"
 runs:
   using: composite
   steps:
@@ -26,9 +34,24 @@ runs:
         test -n "$manifest" || { echo "No Receipts manifest found in $INPUT_MANIFEST_DIR" >&2; exit 1; }
         python "$GITHUB_ACTION_PATH/render_card.py" "$manifest" > "$RUNNER_TEMP/receipts-card.md"
         echo "card=$RUNNER_TEMP/receipts-card.md" >> "$GITHUB_OUTPUT"
+        echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
     - shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         RECEIPTS_CARD_PATH: ${{ steps.card.outputs.card }}
         RECEIPTS_DRY_RUN: ${{ inputs.dry-run }}
       run: bash "$GITHUB_ACTION_PATH/post_comment.sh"
+    - if: ${{ inputs.enforce == 'true' }}
+      name: Enforce Receipts evidence policy
+      shell: bash
+      env:
+        RECEIPTS_MANIFEST: ${{ steps.card.outputs.manifest }}
+        RECEIPTS_ENFORCE_SENSITIVE_ONLY: ${{ inputs.enforce-sensitive-only }}
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        args=()
+        if [[ "$RECEIPTS_ENFORCE_SENSITIVE_ONLY" == "true" ]]; then
+          args+=(--sensitive-only)
+        fi
+        python "$GITHUB_ACTION_PATH/evaluate_gate.py" "$RECEIPTS_MANIFEST" "${args[@]}"

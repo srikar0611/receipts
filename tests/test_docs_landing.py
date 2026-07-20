@@ -14,6 +14,8 @@ def test_public_landing_surfaces_real_recorded_session_evidence():
     assert "Static delivery. Interactive evidence." in page
     assert "Forensic replay" in page
     assert "Verify this receipt" in page
+    assert "Not a hardcoded demo" in page
+    assert "receipts demo --live" in page
     assert 'src="dashboard.js"' in page
 
 

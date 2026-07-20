@@ -9,7 +9,8 @@ from pathlib import Path
 
 from .capture import capture
 from .card import load_manifest, render_card
-from .demo import run_demo
+from .demo import run_demo, run_live_demo
+from .gate import evaluate_gate, render_gate
 from .integrity import keygen, verify_manifest
 from .replay import write_replay
 from .tour import get_tour
@@ -24,6 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify = subcommands.add_parser("verify", help="verify a manifest hash and optional signature")
     verify.add_argument("session", help="manifest path or session id")
     verify.add_argument("--public-key", type=Path, help="Ed25519 public PEM path")
+    gate = subcommands.add_parser("gate", help="block untested changed files using recorded receipt evidence")
+    gate.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
+    gate.add_argument("--sensitive-only", action="store_true", help="only block sensitive paths with NEVER EXECUTED evidence")
+    gate.add_argument("--public-key", type=Path, help="Ed25519 public PEM path")
     key = subcommands.add_parser("keygen", help="create an optional Ed25519 keypair in .receipts/keys")
     key.add_argument("--output-dir", type=Path, default=Path(".receipts"), help="directory containing the keys folder")
     card = subcommands.add_parser("card", help="render a Markdown Trust Card")
@@ -35,7 +40,8 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--no-open", action="store_true", help="do not request the system browser")
     tour = subcommands.add_parser("tour", help="print a GPT review tour or offline sample")
     tour.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
-    subcommands.add_parser("demo", help="run the bundled offline judge demo")
+    demo = subcommands.add_parser("demo", help="run the bundled offline judge demo")
+    demo.add_argument("--live", action="store_true", help="record a fresh retained PTY proof in a new Git repository")
     return parser
 
 
@@ -74,6 +80,25 @@ def main(argv: list[str] | None = None) -> int:
         ok, message = verify_manifest(manifest, candidate.parent, args.public_key)
         print(f"{'OK' if ok else 'FAILED'}: {message}")
         return 0 if ok else 1
+    if args.subcommand == "gate":
+        try:
+            manifest_path, manifest = load_manifest(args.session, Path.cwd())
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"receipts: cannot read manifest for gate: {error}", file=sys.stderr)
+            return 2
+        verified, integrity_message = verify_manifest(manifest, manifest_path.parent, args.public_key)
+        if not verified:
+            print("Evidence gate: BLOCKED")
+            print(f"Integrity: {integrity_message}")
+            print("Policy was not evaluated because the receipt failed integrity verification.")
+            return 1
+        try:
+            findings = evaluate_gate(manifest, sensitive_only=args.sensitive_only)
+        except ValueError as error:
+            print(f"receipts: cannot evaluate gate: {error}", file=sys.stderr)
+            return 2
+        print(render_gate(findings, integrity_message, sensitive_only=args.sensitive_only))
+        return 1 if findings else 0
     if args.subcommand == "card":
         try:
             _path, manifest = load_manifest(args.session, Path.cwd())
@@ -106,8 +131,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.subcommand == "demo":
         try:
-            run_demo(Path.cwd())
-        except (OSError, ValueError, json.JSONDecodeError) as error:
+            if args.live:
+                run_live_demo(Path.cwd())
+            else:
+                run_demo(Path.cwd())
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
             print(f"receipts: cannot run demo: {error}", file=sys.stderr)
             return 2
         return 0

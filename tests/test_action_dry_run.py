@@ -31,3 +31,15 @@ def test_action_dry_run_mocks_github_api_create(tmp_path: Path) -> None:
 def test_action_dry_run_mocks_github_api_update(tmp_path: Path) -> None:
     output = _run_dry_action(tmp_path, '[{"id": 99, "body": "<!-- receipts-trust-card --> old"}]')
     assert "DRY RUN: PATCH https://api.github.com/repos/owner/repo/issues/42/comments/99" in output
+
+
+def test_action_keeps_commenting_before_optional_enforcement() -> None:
+    action = (ROOT / "action" / "action.yml").read_text(encoding="utf-8")
+    assert "enforce:" in action
+    assert "enforce-sensitive-only:" in action
+    enforce = action.split("  enforce:\n", 1)[1].split("  enforce-sensitive-only:\n", 1)[0]
+    sensitive = action.split("  enforce-sensitive-only:\n", 1)[1].split("runs:\n", 1)[0]
+    assert 'default: "false"' in enforce
+    assert 'default: "true"' in sensitive
+    assert action.index('run: bash "$GITHUB_ACTION_PATH/post_comment.sh"') < action.index("name: Enforce Receipts evidence policy")
+    assert "evaluate_gate.py" in action

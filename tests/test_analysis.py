@@ -27,6 +27,12 @@ def test_parser_tolerates_timestamped_pytest_progress() -> None:
     assert events[0]["result"] == "passed"
 
 
+def test_parser_recognizes_stdlib_unittest_ok_summary() -> None:
+    transcript = "[2026-01-01T10:00:00Z] + python3 -m unittest -q tests/test_login.py\nRan 1 test in 0.000s\nOK\n"
+    events = parse_test_executions(transcript)
+    assert events == [{"timestamp": "2026-01-01T10:00:00Z", "command": "python3 -m unittest -q tests/test_login.py", "result": "passed", "summary": "OK"}]
+
+
 def test_analysis_has_one_never_executed_and_one_scope_flag() -> None:
     manifest = {
         "meta": {"task": "fix the login bug"},
