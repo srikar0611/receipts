@@ -56,7 +56,7 @@ def _git(workspace: Path, *args: str) -> None:
         raise RuntimeError(f"could not prepare live-proof Git repository: {message}")
 
 
-def _init_live_repo(cwd: Path) -> Path:
+def _init_live_repo(cwd: Path, dirty_baseline: bool = False) -> Path:
     """Create a retained throwaway repository under the caller's receipts dir."""
     proof_root = cwd / ".receipts" / "live-proofs"
     proof_root.mkdir(parents=True, exist_ok=True)
@@ -67,12 +67,21 @@ def _init_live_repo(cwd: Path) -> Path:
     (workspace / ".gitkeep").touch()
     _git(workspace, "add", ".gitkeep")
     _git(workspace, "commit", "-qm", "Receipts live-proof baseline")
+    if dirty_baseline:
+        billing = workspace / "src" / "billing"
+        billing.mkdir(parents=True)
+        (billing / "legacy.py").write_text(
+            "# Pre-existing worktree change: this is deliberately not agent work.\n"
+            "def legacy_invoice_label() -> str:\n"
+            "    return 'draft'\n",
+            encoding="utf-8",
+        )
     return workspace
 
 
-def _write_live_agent(workspace: Path) -> Path:
+def _write_live_agent(workspace: Path, fixture_name: str = "live_agent.sh") -> Path:
     """Copy the fixture beside, never inside, the repository being observed."""
-    fixture = resources.files("receipts").joinpath("demo_data", "live_agent.sh")
+    fixture = resources.files("receipts").joinpath("demo_data", fixture_name)
     # If this lived inside ``workspace``, the harness script itself would be
     # reported as an untracked agent change before capture starts.
     script = workspace.parent / f"{workspace.name}-agent.sh"
@@ -81,15 +90,17 @@ def _write_live_agent(workspace: Path) -> Path:
     return script
 
 
-def run_live_demo(cwd: Path) -> LiveDemoArtifacts:
+def run_live_demo(cwd: Path, dirty_baseline: bool = False) -> LiveDemoArtifacts:
     """Record a new session through the same PTY path used by `receipts run`.
 
     Unlike `run_demo`, this intentionally creates a new Git repository and
     receipt every time. The retained workspace makes every printed fact easy
     to inspect after the command exits.
     """
-    workspace = _init_live_repo(cwd.resolve())
-    agent = _write_live_agent(workspace)
+    workspace = _init_live_repo(cwd.resolve(), dirty_baseline=dirty_baseline)
+    agent = _write_live_agent(
+        workspace, "baseline_agent.sh" if dirty_baseline else "live_agent.sh"
+    )
     try:
         manifest_path, exit_code = capture(["sh", str(agent)], workspace, task="fix the login bug")
     except Exception:
@@ -102,15 +113,25 @@ def run_live_demo(cwd: Path) -> LiveDemoArtifacts:
     if not verified:
         raise RuntimeError(f"live proof did not verify: {message}")
     findings = evaluate_gate(manifest, sensitive_only=True)
-    if not findings:
+    baseline_paths = set(manifest.get("meta", {}).get("preexisting_dirty_paths", []))
+    if dirty_baseline:
+        if "src/billing/legacy.py" not in baseline_paths:
+            raise RuntimeError("dirty-baseline proof did not retain the pre-existing billing path")
+        if findings:
+            raise RuntimeError("dirty-baseline proof incorrectly produced a sensitive gate finding")
+    elif not findings:
         raise RuntimeError("live proof fixture did not produce the expected sensitive NEVER EXECUTED finding")
     replay_path = write_replay(manifest, manifest_path.with_suffix(".html"), open_browser=False)
-    print("\n## Fresh live proof — not the bundled recording\n")
+    heading = "Fresh dirty-worktree proof — baseline is not agent work" if dirty_baseline else "Fresh live proof — not the bundled recording"
+    print(f"\n## {heading}\n")
     print(render_card(manifest), end="")
     print(f"Live-proof workspace retained: {workspace}")
     print(f"Fresh manifest: {manifest_path}")
     print(f"Integrity: OK — {message}")
     print(f"Replay written: {replay_path}")
-    print("\nExpected policy demonstration — the command succeeds because this block is the proof:")
+    if dirty_baseline:
+        print("\nExpected attribution demonstration — the pre-existing sensitive billing path is raw evidence, not an agent gate finding:")
+    else:
+        print("\nExpected policy demonstration — the command succeeds because this block is the proof:")
     print(render_gate(findings, message, sensitive_only=True))
     return LiveDemoArtifacts(workspace=workspace, manifest_path=manifest_path, replay_path=replay_path)

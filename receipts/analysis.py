@@ -120,10 +120,33 @@ def test_is_mapped_to(path: str, command: str) -> bool:
     return bool(mapped_test_names(path) & command_files)
 
 
-def verification_gap(manifest: dict[str, Any]) -> list[dict[str, str]]:
-    tests = manifest.get("timeline", {}).get("test_executions", [])
+def agent_changed_files(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return net session changes, retaining compatibility with older receipts.
+
+    Presence matters here: an explicit empty list proves that a dirty starting
+    worktree produced no net agent-attributed change. Do not use ``or`` as a
+    fallback, because that would reintroduce pre-existing files into policy.
+    """
+    final = manifest.get("final", {})
+    if "agent_changed_files" in final:
+        return final["agent_changed_files"]
+    return final.get("changed_files", [])
+
+
+def agent_file_changes(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return timeline changes that remain in the session's final delta."""
     changed = manifest.get("timeline", {}).get("file_changes", [])
-    result: list[dict[str, str]] = []
+    final = manifest.get("final", {})
+    if "agent_changed_files" not in final:
+        return changed
+    paths = {item["path"] for item in agent_changed_files(manifest)}
+    return [item for item in changed if item.get("path") in paths]
+
+
+def verification_gap(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    tests = manifest.get("timeline", {}).get("test_executions", [])
+    changed = agent_file_changes(manifest)
+    result: list[dict[str, Any]] = []
     for change in changed:
         path = change["path"]
         if not is_source_file(path):
@@ -139,14 +162,15 @@ def verification_gap(manifest: dict[str, Any]) -> list[dict[str, str]]:
             and event_time >= changed_at
         ]
         mapped = [event for event in later_passes if test_is_mapped_to(path, event.get("command", ""))]
+        attribution = {"preexisting_at_start": True} if change.get("preexisting_at_start") else {}
         if mapped:
             event = mapped[-1]
-            result.append({"path": path, "status": "verified", "test_command": event["command"], "test_timestamp": event["timestamp"]})
+            result.append({"path": path, "status": "verified", "test_command": event["command"], "test_timestamp": event["timestamp"], **attribution})
         elif later_passes:
             event = later_passes[-1]
-            result.append({"path": path, "status": "indirectly_exercised", "test_command": event["command"], "test_timestamp": event["timestamp"]})
+            result.append({"path": path, "status": "indirectly_exercised", "test_command": event["command"], "test_timestamp": event["timestamp"], **attribution})
         else:
-            result.append({"path": path, "status": "never_executed", "test_command": "", "test_timestamp": ""})
+            result.append({"path": path, "status": "never_executed", "test_command": "", "test_timestamp": "", **attribution})
     return result
 
 
@@ -166,7 +190,7 @@ def scope_drift(manifest: dict[str, Any]) -> list[dict[str, str]]:
     if not tokens:
         return []
     flags: list[dict[str, str]] = []
-    for item in manifest.get("final", {}).get("changed_files", []):
+    for item in agent_changed_files(manifest):
         path = item["path"]
         if not is_source_file(path):
             continue
@@ -178,7 +202,7 @@ def scope_drift(manifest: dict[str, Any]) -> list[dict[str, str]]:
 
 def sensitive_paths(manifest: dict[str, Any]) -> list[dict[str, str]]:
     flags: list[dict[str, str]] = []
-    for item in manifest.get("final", {}).get("changed_files", []):
+    for item in agent_changed_files(manifest):
         path = item["path"]
         parts = [part.lower() for part in PurePosixPath(path).parts]
         name = parts[-1] if parts else ""

@@ -33,6 +33,14 @@ receipts demo --live
 
 This creates a retained Git repository under `.receipts/live-proofs/`, wraps a dependency-free deterministic agent through the same POSIX PTY recorder as `receipts run`, and emits a **new** session ID and SHA-256 every time. Its standard-library `unittest` test run is real; its billing edit is intentionally made after the final test. The command prints `Evidence gate: BLOCKED` as the expected proof that the policy caught the untested sensitive change, while `demo --live` itself exits successfully.
 
+### Dirty-worktree proof — no false agent blame
+
+```bash
+receipts demo --live --dirty-baseline
+```
+
+This creates a fresh repository with an already-dirty `src/billing/legacy.py`, then records a separate login change and its test. The raw manifest retains the billing path as baseline evidence, but the Trust Card excludes it from agent counts, flags, verification, and the sensitive-only gate. The command ends with `Evidence gate: PASS`; that pass is the proof that Receipts did not falsely blame the agent for existing work.
+
 To demonstrate the CI exit code separately, copy the printed manifest path:
 
 ```bash
@@ -97,10 +105,10 @@ flowchart LR
 Each `.receipts/session-<id>.json` contains:
 
 - session metadata: timestamps, cwd, full argv, agent label, branch, base commit, task;
-- Git snapshots and per-file first/last observed changes;
+- Git snapshots, the dirty-worktree baseline, and per-file first/last observed changes;
 - parsed test invocations and results for pytest, Python unittest, Jest, Vitest, Go, Cargo, npm/pnpm/yarn, and Make;
 - notable Git, package-install, and `curl`/`wget` commands;
-- final changed-file stats, analysis, hash, and optional signature.
+- the full final diff against the starting commit **and** the net agent-attributed delta from session start, analysis, hash, and optional signature.
 
 ## Deterministic review signals
 
@@ -154,6 +162,7 @@ The full cost-guardrail, CloudFormation, GitHub OIDC, verification, and cleanup 
 
 - **macOS/Linux/WSL only.** Receipts uses stdlib `pty`; Windows-native support is intentionally out of scope. Run it in WSL on Windows.
 - **Polling observes, not omniscience.** File times are observed at a two-second Git-poll cadence, not editor-save timestamps.
+- **Dirty worktrees have an attribution boundary.** Receipts snapshots existing Git changes before launching the agent. Paths that remain unchanged are retained as baseline evidence but excluded from agent counts, flags, and verification. A pre-existing path that changes again is labeled rather than assumed to be wholly agent-authored.
 - **Transcript parsing is conservative.** If a runner command or result cannot be identified confidently, it is marked `unparsed`, never guessed.
 - **Verification is convention-based.** Mapping covers `test_x.py ↔ x.py`, `x.test.ts`/`x.spec.ts ↔ x.ts`, and `x_test.go ↔ x.go`; indirect coverage is not a proof of behavioral coverage.
 - **Scope drift is a heuristic.** It uses task/path tokens with a small `login ↔ auth` alias, and must be read as a prompt for review—not an authorization decision.
@@ -170,6 +179,7 @@ We worked milestone by milestone and committed each one separately:
 3. **Reviewer artifacts:** GPT-5.6 rendered the card from recorded facts only and made sticky-comment create/update logic mockable without calling GitHub.
 4. **Demo:** GPT-5.6 analyzed the real dogfooded session to write the sample tour. It deliberately labels the output as generated with GPT-5.6, rather than pretending an offline call was live.
 5. **Public demo (optional):** GPT-5.6 kept the live showcase separate from the product's core. It deploys only the curated static demo through private S3, CloudFront HTTPS, and a least-privilege GitHub OIDC role—no server, database, or long-lived AWS key.
+6. **Attribution boundary:** GPT-5.6 separated the raw worktree diff from the net session delta. This prevents a dirty developer checkout from being silently credited to the agent while preserving it as inspectable baseline evidence.
 
 The full chronological decision record is in [`BUILDLOG.md`](BUILDLOG.md).
 

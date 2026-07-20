@@ -37,7 +37,9 @@ def run_git(cwd: Path, *args: str) -> str | None:
         )
     except OSError:
         return None
-    return result.stdout.strip() if result.returncode == 0 else None
+    # Keep a leading space from porcelain status output: it is the meaningful
+    # "index unchanged" status column, not cosmetic whitespace.
+    return result.stdout.rstrip() if result.returncode == 0 else None
 
 
 def git_identity(cwd: Path) -> tuple[str | None, str | None]:
@@ -57,13 +59,18 @@ def parse_status(status: str) -> list[str]:
     return paths
 
 
-def snapshot_git(cwd: Path, observed_at: str) -> dict[str, Any]:
+def snapshot_git(cwd: Path, observed_at: str, base_commit: str | None = None) -> dict[str, Any]:
     # Git's default status collapses an entirely untracked directory to
     # `?? src/`; evidence needs the concrete files, not a guessed expansion.
     status = run_git(cwd, "status", "--porcelain=v1", "--untracked-files=all") or ""
-    paths = parse_status(status)
-    diff = run_git(cwd, "diff", "--binary") or ""
-    path_hashes = {path: file_snapshot_hash(cwd, path) for path in paths}
+    # A session may stage or even commit work before it exits. Comparing with the
+    # starting commit retains those paths in later snapshots even when ordinary
+    # `git status` becomes clean. Untracked paths still come only from status.
+    range_arg = base_commit or "HEAD"
+    diff_paths = (run_git(cwd, "diff", "--name-only", range_arg) or "").splitlines()
+    paths = sorted(set(parse_status(status)) | {path for path in diff_paths if path})
+    diff = run_git(cwd, "diff", "--binary", range_arg) or ""
+    path_hashes = {path: file_snapshot_hash(cwd, path, base_commit) for path in paths}
     return {
         "observed_at": observed_at,
         "paths": paths,
@@ -72,32 +79,90 @@ def snapshot_git(cwd: Path, observed_at: str) -> dict[str, Any]:
     }
 
 
-def file_snapshot_hash(cwd: Path, path: str) -> str:
+def file_snapshot_hash(cwd: Path, path: str, base_commit: str | None = None) -> str:
     """Hash the available diff or content for one observed path.
 
     Git does not include untracked files in `git diff`; including their bytes here
     lets the poller distinguish a later edit from an unchanged dirty file.
     """
-    diff = run_git(cwd, "diff", "--binary", "--", path) or ""
+    range_arg = base_commit or "HEAD"
+    diff = run_git(cwd, "diff", "--binary", range_arg, "--", path) or ""
     local = cwd / path
     content = local.read_bytes() if local.is_file() else b""
     return hashlib.sha256(diff.encode("utf-8") + b"\0" + content).hexdigest()
 
 
 def update_file_observations(
-    snapshots: list[dict[str, Any]], file_observations: dict[str, dict[str, str]], snapshot: dict[str, Any]
+    snapshots: list[dict[str, Any]],
+    file_observations: dict[str, dict[str, Any]],
+    observed_states: dict[str, str | None],
+    snapshot: dict[str, Any],
+    baseline_states: dict[str, str],
 ) -> None:
+    """Add one polling observation without attributing the starting dirty tree.
+
+    Missing paths are a meaningful clean state. This lets the receipt retain an
+    observed reset/revert while avoiding the false claim that an unchanged dirty
+    path was written by the wrapped agent.
+    """
     snapshots.append(snapshot)
-    for path in snapshot["paths"]:
-        path_hash = snapshot["path_diff_sha256"][path]
+    current_hashes = snapshot["path_diff_sha256"]
+    paths = set(baseline_states) | set(observed_states) | set(current_hashes)
+    for path in sorted(paths):
+        previous_state = observed_states.get(path)
+        current_state = current_hashes.get(path)
+        if previous_state == current_state:
+            continue
         observation = file_observations.setdefault(
             path,
-            {"path": path, "first_touched_at": snapshot["observed_at"], "last_diff_sha256": path_hash},
+            {
+                "path": path,
+                "first_touched_at": snapshot["observed_at"],
+                "preexisting_at_start": path in baseline_states,
+            },
         )
-        if observation["last_diff_sha256"] != path_hash:
-            observation["last_diff_sha256"] = path_hash
-            observation["last_modified_observed_at"] = snapshot["observed_at"]
-        observation.setdefault("last_modified_observed_at", snapshot["observed_at"])
+        observation["last_modified_observed_at"] = snapshot["observed_at"]
+        observation["last_diff_sha256"] = current_state or ""
+        observation["last_observed_state"] = "dirty" if current_state is not None else "clean"
+        observed_states[path] = current_state
+
+
+def finalize_file_observations(
+    file_observations: dict[str, dict[str, Any]],
+    baseline_states: dict[str, str],
+    final_snapshot: dict[str, Any],
+) -> None:
+    """Mark whether each observed transition remains a net session-end change."""
+    final_states = final_snapshot["path_diff_sha256"]
+    for path, observation in file_observations.items():
+        observation["net_changed_from_start"] = final_states.get(path) != baseline_states.get(path)
+
+
+def split_final_changes(
+    changed_files: list[dict[str, Any]],
+    baseline_states: dict[str, str],
+    final_snapshot: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """Keep the raw final diff separate from the net delta observed this session."""
+    final_states = final_snapshot["path_diff_sha256"]
+    agent_paths = {
+        path
+        for path, state in final_states.items()
+        if state is not None and state != baseline_states.get(path)
+    }
+    full: list[dict[str, Any]] = []
+    for item in changed_files:
+        annotated = dict(item)
+        path = annotated["path"]
+        annotated["preexisting_at_start"] = path in baseline_states
+        annotated["changed_since_session_start"] = path in agent_paths
+        full.append(annotated)
+    agent_changed = [item for item in full if item["changed_since_session_start"]]
+    full_paths = {item["path"] for item in full}
+    removed_preexisting = sorted(
+        path for path in baseline_states if path not in final_states and path not in full_paths
+    )
+    return full, agent_changed, removed_preexisting
 
 
 def detect_agent(command: list[str]) -> str:
@@ -145,6 +210,10 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     for key in ("git_snapshots", "file_changes", "test_executions", "notable_commands"):
         if key not in timeline or not isinstance(timeline[key], list):
             raise ValueError(f"manifest timeline missing list {key}")
+    final = manifest["final"]
+    for key in ("changed_files", "agent_changed_files", "preexisting_changes_removed"):
+        if key in final and not isinstance(final[key], list):
+            raise ValueError(f"manifest final field {key} must be a list")
 
 
 def attach_git_note(cwd: Path, commit: str | None, session_id: str) -> bool:
@@ -175,8 +244,11 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
     started_monotonic = time.monotonic()
     branch, base_commit = git_identity(cwd)
     snapshots: list[dict[str, Any]] = []
-    observations: dict[str, dict[str, str]] = {}
-    update_file_observations(snapshots, observations, snapshot_git(cwd, started_at))
+    observations: dict[str, dict[str, Any]] = {}
+    initial_snapshot = snapshot_git(cwd, started_at, base_commit)
+    snapshots.append(initial_snapshot)
+    baseline_states = dict(initial_snapshot["path_diff_sha256"])
+    observed_states: dict[str, str | None] = dict(baseline_states)
 
     # Import lazily: Windows installations remain importable and receive the
     # clear WSL guidance above rather than an ImportError at CLI startup.
@@ -205,8 +277,8 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
                     transcript_truncated = len(stamped) > remaining
             now = time.monotonic()
             if now >= next_poll:
-                snapshot = snapshot_git(cwd, utc_now())
-                update_file_observations(snapshots, observations, snapshot)
+                snapshot = snapshot_git(cwd, utc_now(), base_commit)
+                update_file_observations(snapshots, observations, observed_states, snapshot, baseline_states)
                 next_poll = now + 2
             if process.poll() is not None:
                 # Drain remaining PTY data before final observation.
@@ -228,15 +300,17 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
         os.close(master_fd)
 
     ended_at = utc_now()
-    final_snapshot = snapshot_git(cwd, ended_at)
-    update_file_observations(snapshots, observations, final_snapshot)
+    final_snapshot = snapshot_git(cwd, ended_at, base_commit)
+    update_file_observations(snapshots, observations, observed_states, final_snapshot, baseline_states)
+    finalize_file_observations(observations, baseline_states, final_snapshot)
     transcript_text = transcript.decode("utf-8", errors="replace")
     clean_text = ANSI_RE.sub("", transcript_text)
     raw_path = receipts_dir / f"session-{session_id}.log"
     clean_path = receipts_dir / f"session-{session_id}.clean.log"
     raw_path.write_text(transcript_text, encoding="utf-8")
     clean_path.write_text(clean_text, encoding="utf-8")
-    changed = final_changed_files(cwd, base_commit, list(observations))
+    raw_changed = final_changed_files(cwd, base_commit, final_snapshot["paths"])
+    changed, agent_changed, removed_preexisting = split_final_changes(raw_changed, baseline_states, final_snapshot)
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "meta": {
@@ -251,6 +325,7 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
             "task": task,
             "git_branch": branch,
             "base_commit": base_commit,
+            "preexisting_dirty_paths": sorted(baseline_states),
             "transcript_truncated": transcript_truncated,
         },
         "timeline": {
@@ -260,7 +335,11 @@ def capture(command: list[str], cwd: Path, task: str | None = None) -> tuple[Pat
             "notable_commands": parse_notable_commands(clean_text),
             "command_count": count_explicit_commands(clean_text),
         },
-        "final": {"changed_files": changed},
+        "final": {
+            "changed_files": changed,
+            "agent_changed_files": agent_changed,
+            "preexisting_changes_removed": removed_preexisting,
+        },
         "artifacts": {"raw_transcript": raw_path.name, "clean_transcript": clean_path.name},
     }
     from .analysis import analyze_manifest

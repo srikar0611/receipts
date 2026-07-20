@@ -24,14 +24,15 @@ def _at(timestamp: str) -> str:
     return timestamp[11:16] + " UTC" if len(timestamp) >= 16 else timestamp
 
 
-def _verification_row(item: dict[str, str]) -> str:
+def _verification_row(item: dict[str, Any]) -> str:
     path = item["path"]
     status = item["status"]
+    attribution = " · pre-existing at start" if item.get("preexisting_at_start") else ""
     if status == "verified":
-        return f"| `{path}` | ✅ verified — `{item['test_command']}` passed at {_at(item['test_timestamp'])} |"
+        return f"| `{path}` | ✅ verified — `{item['test_command']}` passed at {_at(item['test_timestamp'])}{attribution} |"
     if status == "indirectly_exercised":
-        return f"| `{path}` | 🟡 indirectly exercised — `{item['test_command']}` passed after last observed edit |"
-    return f"| `{path}` | 🔴 NEVER EXECUTED in this session |"
+        return f"| `{path}` | 🟡 indirectly exercised — `{item['test_command']}` passed after last observed edit{attribution} |"
+    return f"| `{path}` | 🔴 NEVER EXECUTED in this session{attribution} |"
 
 
 def render_card(manifest: dict[str, Any]) -> str:
@@ -39,7 +40,7 @@ def render_card(manifest: dict[str, Any]) -> str:
     final = manifest.get("final", {})
     timeline = manifest.get("timeline", {})
     analysis = manifest.get("analysis", {})
-    changed = final.get("changed_files", [])
+    changed = final["agent_changed_files"] if "agent_changed_files" in final else final.get("changed_files", [])
     additions = sum(item.get("additions", 0) or 0 for item in changed)
     deletions = sum(item.get("deletions", 0) or 0 for item in changed)
     task = meta.get("task") or "not recorded"
@@ -51,7 +52,7 @@ def render_card(manifest: dict[str, Any]) -> str:
         "## 🧾 Receipts — AI Session Trust Card",
         f'**Task:** "{task}"  ·  **Agent:** {meta.get("agent", "other")}  ·  **Session:** {_duration(meta.get("duration_seconds"))} · branch `{branch}` · base `{base}`',
         "",
-        f"**What the agent actually did:** {command_count} commands · {len(changed)} files changed (+{additions} / −{deletions}) · {test_count} test runs",
+        f"**What the agent actually did:** {command_count} commands · {len(changed)} agent-attributed files changed (+{additions} / −{deletions}) · {test_count} test runs",
         "",
         "| File | Verification |",
         "|---|---|",
@@ -60,6 +61,23 @@ def render_card(manifest: dict[str, Any]) -> str:
     lines.extend(_verification_row(item) for item in verification)
     if not verification:
         lines.append("| _No changed source files detected_ | — |")
+    preexisting = set(meta.get("preexisting_dirty_paths", []))
+    if preexisting:
+        changed_again = {
+            item.get("path")
+            for item in timeline.get("file_changes", [])
+            if item.get("preexisting_at_start")
+        }
+        unchanged = len(preexisting - changed_again)
+        boundary = (
+            f"> **Attribution boundary:** {len(preexisting)} path(s) were already dirty when recording began; "
+            f"{unchanged} remained unchanged and were excluded from agent-attributed counts, flags, and verification."
+        )
+        if changed_again:
+            boundary += f" {len(changed_again)} changed again during this session and are labeled `pre-existing at start`."
+        if final.get("preexisting_changes_removed"):
+            boundary += f" {len(final['preexisting_changes_removed'])} pre-existing change(s) became clean during the session."
+        lines.extend(["", boundary])
     flags: list[str] = []
     for item in analysis.get("scope_drift", []):
         flags.append(f'- 🔴 `{item["path"]}` changed — outside stated task scope (heuristic)')

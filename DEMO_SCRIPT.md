@@ -11,6 +11,10 @@ receipts demo --live
 
 Say: “This is not replaying the website’s sample. Receipts just created a fresh Git repository, wrapped an agent in a real PTY, and recorded a new session.” Point to the newly printed workspace, manifest path, and `Integrity: OK` line.
 
+If asked about a developer's already-dirty checkout, say: “Receipts takes a baseline before launching the agent. Unchanged baseline paths stay inspectable in the raw receipt, but are excluded from agent-attributed counts, flags, verification, and the gate. If the agent changes one again, the replay labels it `pre-existing at start`.”
+
+For a live proof, run `receipts demo --live --dirty-baseline`. It deliberately starts with a dirty `src/billing/legacy.py`, then records a different agent edit. Point to the Trust Card’s **Attribution boundary** and the expected `Evidence gate: PASS`: the sensitive billing path is preserved as raw baseline evidence, but Receipts does not blame the agent for it.
+
 ## 0:18–0:38 — Let the policy stop the bad change
 
 Point to the final `Evidence gate: BLOCKED` section. Say: “The command itself succeeded—the block is the result we wanted. The agent changed a sensitive billing file after its final passing test. Receipts did not guess that it was unsafe; it observed that no test ran afterward.”

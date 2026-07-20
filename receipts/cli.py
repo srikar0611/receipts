@@ -42,6 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
     tour.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
     demo = subcommands.add_parser("demo", help="run the bundled offline judge demo")
     demo.add_argument("--live", action="store_true", help="record a fresh retained PTY proof in a new Git repository")
+    demo.add_argument(
+        "--dirty-baseline",
+        action="store_true",
+        help="with --live, prove that pre-existing dirty work is not attributed to the agent",
+    )
     return parser
 
 
@@ -130,9 +135,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"## Review tour — {label}\n\n{tour_text}")
         return 0
     if args.subcommand == "demo":
+        if args.dirty_baseline and not args.live:
+            print("receipts: --dirty-baseline requires --live", file=sys.stderr)
+            return 2
         try:
             if args.live:
-                run_live_demo(Path.cwd())
+                run_live_demo(Path.cwd(), dirty_baseline=args.dirty_baseline)
             else:
                 run_demo(Path.cwd())
         except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
