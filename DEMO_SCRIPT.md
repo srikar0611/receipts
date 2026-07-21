@@ -1,4 +1,4 @@
-# Receipts demo video script (2:48)
+# Receipts demo video script (2:59)
 
 ## 0:00–0:18 — Start with fresh proof
 
@@ -45,7 +45,13 @@ Return to the printed card and read the three rows quickly:
 
 Point to the scope-drift and sensitive-path flags. Emphasize that scope drift is labeled as a heuristic.
 
-## 1:28–1:55 — The live public evidence workbench
+## 1:28–1:39 — VS Code evidence workbench
+
+In desktop VS Code or Remote-WSL, open the **Receipts** Activity Bar view and select the fresh local session. Click the red billing file to open the real workspace source, then select **Run CLI verification**.
+
+Say: “This is a developer tool, not a hosted mock-up. It reads the full local receipt from this workspace and sends verification through a visible VS Code task. The raw transcript and paths never leave the machine.”
+
+## 1:39–2:06 — The live public evidence workbench
 
 Open the deployed page. If the M11 publisher has run, point to the **LIVE PUBLISHED** badge and the fresh public receipt ID. Say: “This dashboard is not a raw manifest in a browser. GitHub Actions made a fresh PTY receipt, verified it, and published a separately hashed projection with aliases instead of paths, commands, task text, or a transcript.”
 
@@ -53,7 +59,7 @@ Open the forensic replay. Show `file-003` as **NEVER EXECUTED**, click **Verify 
 
 If no live publication is present, say: “The dashboard is safely showing its verified alias-only fallback. The same trusted workflow can publish a new one from the Actions tab; it never uploads a raw receipt.”
 
-## 1:55–2:18 — Real pull-request enforcement
+## 2:06–2:29 — Real pull-request enforcement
 
 Show this Action configuration:
 
@@ -67,10 +73,10 @@ Show this Action configuration:
 
 Say: “The Action posts or updates the Trust Card first, then makes a sensitive `NEVER EXECUTED` finding fail the job. That is a review policy built from the agent’s recorded session facts—not another LLM opinion about the diff.”
 
-## 2:18–2:33 — Optional GPT review tour
+## 2:29–2:44 — Optional GPT review tour
 
 Run `receipts tour` or point to the demo output. Say: “Without a key, this is explicitly labeled sample output generated with GPT-5.6. With a key, it can provide a risk-ranked review tour. Capture, hash verification, replay, and the evidence gate stay offline.”
 
-## 2:33–2:48 — Close
+## 2:44–2:59 — Close
 
 “Receipts is agent-agnostic evidence over vibes. Before merging AI code, know what it wrote, what it ran, what it never executed—and enforce that fact when it matters.”

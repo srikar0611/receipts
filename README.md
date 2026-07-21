@@ -175,6 +175,31 @@ The full cost-guardrail, CloudFormation update, GitHub OIDC variables, verificat
 | Enterprise agent firewalls (e.g. LlamaFirewall, Aegis) | “Should this agent action be allowed?” | Post-session reviewer evidence, independent of agent vendor. |
 | Session attach tools (e.g. Warp) | “How do I work in this terminal now?” | A durable, tamper-evident receipt attached to the resulting change. |
 
+## VS Code Evidence Workbench
+
+Receipts also ships an optional local VS Code extension: **Receipts — AI
+Evidence**. It turns real `.receipts/session-*.json` manifests already in a
+workspace into a sidebar and interactive Evidence Workbench.
+
+- It shows the exact stored verification tiers, attribution boundary, task,
+  agent, test count, flags, and changed paths.
+- Clicking a file opens that local workspace file. Verify, gate, and replay
+  actions send the actual Receipts CLI command only to a visible integrated
+  terminal.
+- It has no telemetry, API key, account, backend, or network dependency.
+- It works in desktop VS Code and Remote - WSL; browser-only vscode.dev is
+  intentionally unsupported because raw evidence remains local.
+
+Build and install the VSIX with:
+
+```bash
+python tools/package_vscode_extension.py --verify
+```
+
+Then use VS Code's **Extensions: Install from VSIX...** command to choose
+`dist/receipts-vscode-0.1.0.vsix`. See
+[VSCODE_EXTENSION.md](VSCODE_EXTENSION.md) for the judge walkthrough.
+
 ## Honest limitations
 
 - **macOS/Linux/WSL only.** Receipts uses stdlib `pty`; Windows-native support is intentionally out of scope. Run it in WSL on Windows.
@@ -209,4 +234,4 @@ python -m pip install pytest
 python -m pytest -q
 ```
 
-The current suite covers transcript fixtures, verification analysis, integrity/tamper checks, Trust Card rendering, mocked Action create/update behavior, replay embedding, tour fallback, and the offline demo.
+The current suite covers transcript fixtures, verification analysis, integrity/tamper checks, Trust Card rendering, mocked Action create/update behavior, replay embedding, tour fallback, the offline demo, and fixture-driven VS Code receipt-model checks.

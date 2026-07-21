@@ -111,3 +111,30 @@
 - **Local validation:** `public_feed.py`, the CLI, the public-sample builder, and M11 test modules compiled successfully. A deterministic harness passed 11 M11 checks: sanitizer privacy/aliasing, deterministic public hashing, tampered-source refusal, tampered-public-object detection, safe replay rendering, checked-in public sample validation, dashboard fallback contract, CloudFormation role/cache boundaries, and both deployment workflow contracts. A direct CLI integration also exported a public JSON + replay from the bundled source and verified both source and public SHA-256 values.
 - **Environment boundary:** The desktop host's WSL bridge has no installed distribution and its Python sandbox cannot download pytest, so the full WSL `python -m pytest -q` acceptance remains intentionally deferred to the attached user terminal before the M11 commit. No claim of a full-suite pass is made here until that terminal output exists.
 - **M11 acceptance proof:** In the attached WSL environment, `python -m pytest -q` passed **41 tests in 3.55s**. `receipts demo --live` then recorded fresh session `20260721T170725Z-4b6594e1`, whose source SHA-256 verified unsigned and whose expected sensitive-only gate blocked the final untested source change. `receipts export-public` converted that verified source into `/tmp/receipts-m11-public/latest.json` and `latest.html`; `receipts verify` verified the public JSON. The public object reported format `receipts-public-feed/v1`, aliases `file-001` through `file-003`, and statuses `verified`, `indirectly_exercised`, and `never_executed`—without publishing raw paths, task text, commands, Git metadata, or transcripts.
+
+## 2026-07-21 — M12 VS Code local evidence workbench
+
+- **User request:** Add a VS Code tool so Receipts is useful inside a
+  developer's normal review environment.
+- **Decision:** Build an optional local-only extension rather than a browser
+  extension. It discovers genuine `.receipts/session-*.json` files in the
+  opened workspace and renders stored Trust Card evidence, verification
+  states, attribution boundaries, and flags in an Activity Bar workbench.
+- **Why:** A browser cannot safely run a local terminal command. VS Code
+  already has the workspace, source files, and integrated terminal needed for
+  review. The extension is deliberately a reader and command handoff: it
+  displays only recorded evidence, opens local files, and starts Verify/Gate/
+  Replay as visible, argument-safe VS Code process tasks rather than
+  duplicating or fabricating the CLI's judgments.
+- **GPT-5.6 reasoning contribution:** Keep the new surface offline and
+  dependency-free at runtime, retain M10's attribution boundary, distinguish
+  full private manifests from alias-only M11 public feeds, and label a hash as
+  recorded—not verified—until the canonical CLI verifier runs. A dark
+  navy/glass/cyan workbench gives judges a tangible developer-tool experience
+  without turning the raw receipt into a SaaS upload.
+- **Acceptance target:** Native Node tests cover strict manifest fidelity,
+  exact stored verification rows (with no invented row when analysis is
+  absent), agent-attribution preference, and captured-workspace path
+  containment. A stdlib VSIX builder creates an installable package with no
+  `node_modules`. A manual VS Code / WSL smoke opens a fresh M11 receipt and
+  runs the real gate.

@@ -1,0 +1,53 @@
+name: Verify Receipts VS Code extension
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "vscode-receipts/**"
+      - "tools/package_vscode_extension.py"
+      - ".github/workflows/verify-vscode-extension.yml"
+  pull_request:
+    paths:
+      - "vscode-receipts/**"
+      - "tools/package_vscode_extension.py"
+      - ".github/workflows/verify-vscode-extension.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Test and package local VS Code tool
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run extension model tests and syntax checks
+        working-directory: vscode-receipts
+        run: |
+          node --test
+          node --check extension.js
+          node --check lib/receipt-model.js
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build a dependency-free VSIX
+        run: python tools/package_vscode_extension.py --verify
+
+      - name: Upload installable VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipts-vscode-extension
+          path: dist/receipts-vscode-*.vsix
+          if-no-files-found: error

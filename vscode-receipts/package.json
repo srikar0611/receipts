@@ -1,0 +1,160 @@
+{
+  "name": "receipts-vscode",
+  "displayName": "Receipts — AI Evidence",
+  "description": "Review local Receipts manifests and AI coding-session evidence directly in VS Code.",
+  "version": "0.1.0",
+  "publisher": "srikar0611",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srikar0611/receipts.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Testing",
+    "SCM Providers"
+  ],
+  "keywords": [
+    "ai",
+    "provenance",
+    "code-review",
+    "testing",
+    "security",
+    "receipts"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onView:receipts.sessions",
+    "onCommand:receipts.openWorkbench",
+    "onCommand:receipts.refresh",
+    "onCommand:receipts.verify",
+    "onCommand:receipts.gate",
+    "onCommand:receipts.openReplay"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node --check extension.js && node --check lib/receipt-model.js && node --check test/receipt-model.test.js"
+  },
+  "contributes": {
+    "configuration": {
+      "title": "Receipts",
+      "properties": {
+        "receipts.command": {
+          "type": "string",
+          "default": "receipts",
+          "description": "Executable used by visible VS Code tasks for Receipts CLI actions. Use an absolute executable path if Receipts is not on PATH.",
+          "scope": "window"
+        },
+        "receipts.maxSessions": {
+          "type": "number",
+          "default": 25,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Maximum number of local session manifests displayed in the Receipts view.",
+          "scope": "window"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "receipts",
+          "title": "Receipts",
+          "icon": "media/receipt.svg"
+        }
+      ]
+    },
+    "views": {
+      "receipts": [
+        {
+          "id": "receipts.sessions",
+          "name": "Evidence Sessions",
+          "when": "workspaceFolderCount != 0"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "receipts.openWorkbench",
+        "title": "Receipts: Open Evidence Workbench",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "receipts.refresh",
+        "title": "Receipts: Refresh Local Evidence",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "receipts.verify",
+        "title": "Receipts: Verify Selected Receipt",
+        "icon": "$(verified)"
+      },
+      {
+        "command": "receipts.gate",
+        "title": "Receipts: Run Evidence Gate",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "receipts.openReplay",
+        "title": "Receipts: Open Full Replay",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "receipts.copyCaptureCommand",
+        "title": "Receipts: Copy Capture Command",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "receipts.openFile",
+        "title": "Receipts: Open Evidence File"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "receipts.refresh",
+          "when": "view == receipts.sessions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "receipts.openWorkbench",
+          "when": "view == receipts.sessions",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "receipts.openWorkbench",
+          "when": "view == receipts.sessions && viewItem == receiptsSession",
+          "group": "inline@1"
+        },
+        {
+          "command": "receipts.verify",
+          "when": "view == receipts.sessions && viewItem == receiptsSession",
+          "group": "receipts@1"
+        },
+        {
+          "command": "receipts.gate",
+          "when": "view == receipts.sessions && viewItem == receiptsSession",
+          "group": "receipts@2"
+        },
+        {
+          "command": "receipts.openReplay",
+          "when": "view == receipts.sessions && viewItem == receiptsSession",
+          "group": "receipts@3"
+        },
+        {
+          "command": "receipts.openFile",
+          "when": "view == receipts.sessions && viewItem == receiptsFile",
+          "group": "inline@1"
+        }
+      ]
+    }
+  }
+}
