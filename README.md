@@ -4,9 +4,9 @@
 
 Receipts is an open, agent-agnostic provenance layer for AI-generated code. It wraps a coding-agent terminal session, records the commands, changed files, and test evidence it can observe, then produces an integrity-protected review artifact. The headline finding is deliberately simple: **what did the agent write but never execute?**
 
-See the deployed, recorded sample at [receipts-demo](https://d2hw2ynyop1ius.cloudfront.net/). It is intentionally a **recorded showcase**, not a hosted simulator: run `receipts demo --live` to make a new receipt on your own machine.
+See the deployed evidence dashboard at [receipts-demo](https://d2hw2ynyop1ius.cloudfront.net/). It first checks for the **latest published GitHub Actions demo receipt**, then safely falls back to a verified recorded sample. Run `receipts demo --live` to make a new full receipt on your own machine.
 
-The demo is intentionally **interactive without a backend**: its landing page recomputes the published sample manifest's SHA-256 in the browser, and the replay can filter evidence, scrub the observed timeline, inspect individual events, and load another local Receipts manifest without uploading it anywhere. Static delivery keeps the artifact portable; the captured session facts are the product.
+The dashboard is intentionally **interactive without a hosted application backend**: it recomputes the public projection's SHA-256 in the browser. The live feed contains only stable file aliases, verification statuses, counts, and relative timing; the raw local manifest, task, command line, source paths, Git metadata, and transcript are never uploaded. Static delivery keeps a full private replay portable; the captured session facts are the product.
 
 ## Judge quickstart — under 60 seconds
 
@@ -69,6 +69,21 @@ receipts gate session-<id>
 `run` accepts any executable: `codex`, `claude`, a shell script, or another coding agent. It records the exact argv and labels the executable as `codex`, `claude`, `cursor`, or `other`.
 
 `replay` writes a single static HTML file beside the manifest and asks the system browser to open it. Use `--no-open` in CI/headless environments.
+
+### Optional public live-feed projection
+
+Never upload a raw `session-*.json` manifest to a public site. It may contain a task, working directory, full command line, Git identifiers, source paths, and transcript artifact names. Instead, verify it first and generate a separately hashed, alias-only projection:
+
+```bash
+receipts export-public /path/to/.receipts/session-<id>.json \
+  --output public/latest.json \
+  --replay-output public/latest.html \
+  --publication-kind manual
+
+receipts verify public/latest.json
+```
+
+The public object has no mapping from `file-001` aliases back to source paths. It preserves only the useful review facts: agent category, duration, counts, relative test/edit ordering, verification status, generic risk categories, and its own SHA-256. `export-public` refuses a source receipt whose integrity check fails.
 
 ### Optional signed receipts
 
@@ -146,9 +161,11 @@ The Action posts/updates the Trust Card first, then fails the job when a **sensi
 
 ## Optional: public AWS demo
 
-Receipts does not need a cloud backend. If you want a judge-ready public link, M6 deploys **only** the curated static `docs/` site through a private S3 bucket and CloudFront HTTPS. The S3 origin remains private; GitHub Actions receives short-lived AWS credentials through a role restricted to one exact OIDC subject, rather than using stored AWS access keys.
+Receipts does not need a cloud backend. If you want a judge-ready public link, AWS deploys the curated static `docs/` site through a private S3 bucket and CloudFront HTTPS. The S3 origin remains private; GitHub Actions receives short-lived AWS credentials through an exact-subject OIDC role, rather than stored AWS access keys.
 
-The full cost-guardrail, CloudFormation, GitHub OIDC, verification, and cleanup guide is in [`AWS_DEPLOY.md`](AWS_DEPLOY.md). Do not deploy raw `.receipts/` content or user session data to this public showcase.
+M11 adds an optional **manual live-feed publisher**. On `master`, [`.github/workflows/publish-live-evidence.yml`](.github/workflows/publish-live-evidence.yml) records a fresh synthetic PTY proof on a trusted GitHub runner, verifies the private source manifest, creates an alias-only public projection, verifies that projection, then writes only `live/latest.json` and `live/latest.html`. A separate AWS role has `PutObject` permission for exactly those two keys; the normal site deploy role is explicitly denied access to `live/*`. CloudFront disables caching for that prefix, so each feed view fetches the latest object.
+
+The full cost-guardrail, CloudFormation update, GitHub OIDC variables, verification, and cleanup guide is in [`AWS_DEPLOY.md`](AWS_DEPLOY.md). Do not deploy raw `.receipts/` content or user session data to this public showcase.
 
 ## Comparison
 
@@ -169,6 +186,7 @@ The full cost-guardrail, CloudFormation, GitHub OIDC, verification, and cleanup 
 - **Integrity proves manifest mutation, not every external fact.** Hashing makes later manifest edits detectable; it cannot prove an unobserved process or side effect never occurred.
 - **The evidence gate is deliberately narrow.** It blocks changed files with no passing test observed after their final edit; `--sensitive-only` limits that further to recorded sensitive-path hints. It does not prove correctness or replace human review.
 - **Live tour is optional.** No key means no network call and a labeled bundled sample; the live API branch is not exercised by the offline demo.
+- **The public live feed is curated, not SaaS.** It is a latest-published static object for the trusted GitHub Actions synthetic demo, not a multi-tenant service or a terminal stream. It deliberately aliases paths and withholds raw receipt data. For a real project, publish only after explicit review and consent.
 
 ## How Codex & GPT-5.6 built this
 
@@ -180,6 +198,7 @@ We worked milestone by milestone and committed each one separately:
 4. **Demo:** GPT-5.6 analyzed the real dogfooded session to write the sample tour. It deliberately labels the output as generated with GPT-5.6, rather than pretending an offline call was live.
 5. **Public demo (optional):** GPT-5.6 kept the live showcase separate from the product's core. It deploys only the curated static demo through private S3, CloudFront HTTPS, and a least-privilege GitHub OIDC role—no server, database, or long-lived AWS key.
 6. **Attribution boundary:** GPT-5.6 separated the raw worktree diff from the net session delta. This prevents a dirty developer checkout from being silently credited to the agent while preserving it as inspectable baseline evidence.
+7. **Live public evidence:** GPT-5.6 separated the public feed from the raw receipt. The publisher verifies a fresh PTY-generated source receipt first, creates a separately hashed alias-only projection, and uses a distinct prefix-scoped AWS OIDC role to publish just the latest projection and safe replay.
 
 The full chronological decision record is in [`BUILDLOG.md`](BUILDLOG.md).
 

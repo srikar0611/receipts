@@ -12,6 +12,7 @@ from .card import load_manifest, render_card
 from .demo import run_demo, run_live_demo
 from .gate import evaluate_gate, render_gate
 from .integrity import keygen, verify_manifest
+from .public_feed import export_public_receipt
 from .replay import write_replay
 from .tour import get_tour
 
@@ -38,6 +39,26 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
     replay.add_argument("--output", type=Path, help="HTML output path")
     replay.add_argument("--no-open", action="store_true", help="do not request the system browser")
+    public = subcommands.add_parser(
+        "export-public",
+        help="write a privacy-preserving public evidence projection from a verified receipt",
+    )
+    public.add_argument("session", help="private manifest path or session id")
+    public.add_argument("--output", type=Path, required=True, help="destination JSON path for the public projection")
+    public.add_argument("--replay-output", type=Path, help="optional self-contained public replay HTML path")
+    public.add_argument(
+        "--landing-href",
+        default="index.html",
+        help="safe relative dashboard link inside the public replay (index.html or ../index.html)",
+    )
+    public.add_argument(
+        "--publication-kind",
+        choices=("curated-sample", "github-actions-demo", "manual"),
+        default="manual",
+        help="safe label for the public projection; source task text is never copied",
+    )
+    public.add_argument("--published-at", help="optional public publication timestamp (not a source-session timestamp)")
+    public.add_argument("--public-key", type=Path, help="Ed25519 public PEM for verifying a signed source receipt")
     tour = subcommands.add_parser("tour", help="print a GPT review tour or offline sample")
     tour.add_argument("session", nargs="?", help="manifest path or session id; defaults to newest")
     demo = subcommands.add_parser("demo", help="run the bundled offline judge demo")
@@ -124,6 +145,30 @@ def main(argv: list[str] | None = None) -> int:
             print(f"receipts: cannot create replay: {error}", file=sys.stderr)
             return 2
         print(f"Replay written: {output}")
+        return 0
+    if args.subcommand == "export-public":
+        candidate = Path(args.session)
+        if not candidate.exists():
+            session_id = args.session.removeprefix("session-").removesuffix(".json")
+            candidate = Path(".receipts") / f"session-{session_id}.json"
+        try:
+            _projection, source_message = export_public_receipt(
+                candidate,
+                args.output,
+                replay_output=args.replay_output,
+                landing_href=args.landing_href,
+                publication_kind=args.publication_kind,
+                published_at=args.published_at,
+                public_key=args.public_key,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"receipts: cannot export public evidence: {error}", file=sys.stderr)
+            return 2
+        print(f"Public receipt written: {args.output}")
+        if args.replay_output:
+            print(f"Public replay written: {args.replay_output}")
+        print(f"Source integrity: {source_message}")
+        print("Privacy: source paths, task, commands, Git metadata, and transcripts were not published.")
         return 0
     if args.subcommand == "tour":
         try:

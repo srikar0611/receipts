@@ -1,155 +1,231 @@
 (() => {
   "use strict";
 
+  const LIVE_RECEIPT_URL = "live/latest.json";
+  const FALLBACK_RECEIPT_URL = "sample-session.json";
   const $ = (id) => document.getElementById(id);
-  const text = (id, value) => { const node = $(id); if (node) node.textContent = value; };
-  const shortHash = (hash = "") => hash ? `${hash.slice(0, 4)}…${hash.slice(-4)}` : "unavailable";
-  const duration = (seconds) => `${Number(seconds || 0).toFixed(1)}s`;
-  const relativeSeconds = (timestamp, manifest) => Math.max(0, (Date.parse(timestamp) - Date.parse(manifest.meta.started_at)) / 1000);
-  const relativeTime = (timestamp, manifest) => `${relativeSeconds(timestamp, manifest).toFixed(1).padStart(4, "0")}s`;
-  const labelFor = (status) => ({ verified: "verified", indirectly_exercised: "indirect", never_executed: "NEVER EXECUTED" }[status] || status || "unparsed");
+  const statuses = {
+    verified: "verified",
+    indirectly_exercised: "indirect coverage",
+    never_executed: "NEVER EXECUTED",
+    unparsed: "unparsed",
+  };
 
-  function canonicalize(value) {
+  const canonicalize = (value) => {
     if (Array.isArray(value)) return value.map(canonicalize);
     if (value && typeof value === "object") {
-      return Object.keys(value).sort().reduce((copy, key) => {
-        copy[key] = canonicalize(value[key]);
-        return copy;
+      return Object.keys(value).sort().reduce((out, key) => {
+        out[key] = canonicalize(value[key]);
+        return out;
       }, {});
     }
     return value;
-  }
+  };
 
-  function canonicalBody(manifest) {
-    const body = { ...manifest };
+  const canonicalBody = (receipt) => {
+    const body = { ...receipt };
     delete body.integrity;
     return JSON.stringify(canonicalize(body));
-  }
+  };
 
-  async function browserHash(manifest) {
-    if (!globalThis.crypto?.subtle) throw new Error("Web Crypto is unavailable in this browser");
-    const bytes = new TextEncoder().encode(canonicalBody(manifest));
+  async function browserHash(receipt) {
+    if (!globalThis.crypto?.subtle) throw new Error("Web Crypto is unavailable");
+    const bytes = new TextEncoder().encode(canonicalBody(receipt));
     const digest = await crypto.subtle.digest("SHA-256", bytes);
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
   }
 
-  function element(tag, className, content) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (content !== undefined) node.textContent = content;
-    return node;
+  function projectionIsWellFormed(receipt) {
+    return Boolean(
+      receipt
+      && receipt.format === "receipts-public-feed/v1"
+      && receipt.public_schema_version === 1
+      && receipt.receipt?.path_mode === "aliased"
+      && Array.isArray(receipt.files)
+      && Array.isArray(receipt.tests)
+      && typeof receipt.integrity?.sha256 === "string",
+    );
   }
 
-  function sourceEvents(manifest) {
-    const changes = (manifest.timeline.file_changes || []).map((change) => ({
-      timestamp: change.last_modified_observed_at,
-      kind: "change",
-      path: change.path,
-      detail: change.path.includes("__pycache__") ? "generated Python cache observed" : "file change observed",
-      alert: change.path === "src/billing/invoice.py",
-    }));
-    const tests = (manifest.timeline.test_executions || []).map((run) => ({
-      timestamp: run.timestamp,
-      kind: "test",
-      path: run.command,
-      detail: run.summary || run.result || "test result unparsed",
-      alert: run.result === "failed",
-    }));
-    return [...changes, ...tests].sort((left, right) => String(left.timestamp).localeCompare(String(right.timestamp)));
+  async function loadProjection(url) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const receipt = await response.json();
+    if (!projectionIsWellFormed(receipt)) throw new Error("not a valid public Receipts projection");
+    const actual = await browserHash(receipt);
+    if (actual !== receipt.integrity.sha256) throw new Error("public projection sha256 mismatch");
+    return receipt;
   }
 
-  function renderVerification(manifest) {
-    const list = $("verificationList");
-    list.replaceChildren();
-    for (const item of manifest.analysis.verification || []) {
-      const row = element("div", `verification-row ${item.status}`);
-      row.append(element("span", "verification-dot"), element("code", "", item.path), element("small", "", labelFor(item.status)));
-      list.append(row);
+  const ms = (value) => value === null || value === undefined ? "unparsed" : `+${(Number(value) / 1000).toFixed(1)}s`;
+  const shortHash = (hash = "") => hash ? `${hash.slice(0, 4)}…${hash.slice(-4)}` : "unavailable";
+  const statusLabel = (status) => statuses[status] || "unparsed";
+  const gap = (receipt) => (receipt.files || []).find((file) => file.verification === "never_executed");
+  const latestPassingTest = (receipt) => [...(receipt.tests || [])]
+    .filter((test) => test.result === "passed" && Number.isInteger(test.offset_ms))
+    .sort((left, right) => left.offset_ms - right.offset_ms)
+    .at(-1);
+
+  function setText(id, value) {
+    const element = $(id);
+    if (element) element.textContent = value;
+  }
+
+  function setReplayLinks(live) {
+    const url = live ? "live/latest.html#red-flag" : "replay.html#red-flag";
+    for (const id of ["forensicLink", "primaryReplayLink", "workbenchLink", "consoleReplayLink", "footerReplayLink"]) {
+      const element = $(id);
+      if (element) element.href = url;
     }
   }
 
-  function renderEventFeed(manifest) {
-    const feed = $("eventFeed");
-    feed.replaceChildren();
-    const visible = sourceEvents(manifest).filter((event) => !event.path.includes("__pycache__"));
-    for (const event of visible) {
-      const card = element("div", `event-card ${event.kind}${event.alert ? " alert" : ""}`);
-      const time = element("time", "", relativeTime(event.timestamp, manifest));
-      const dot = element("span", "event-dot");
-      const body = element("div");
-      body.append(element("b", "", event.path), element("span", "", event.detail));
+  function renderVerification(receipt) {
+    const holder = $("verificationList");
+    if (!holder) return;
+    holder.replaceChildren();
+    for (const file of receipt.files || []) {
+      const row = document.createElement("div");
+      row.className = `verification-row ${file.verification || "unparsed"}`;
+      const dot = document.createElement("span");
+      dot.className = "verification-dot";
+      const name = document.createElement("code");
+      name.textContent = file.id;
+      const label = document.createElement("small");
+      label.textContent = statusLabel(file.verification);
+      row.append(dot, name, label);
+      holder.append(row);
+    }
+  }
+
+  function renderEvents(receipt) {
+    const holder = $("eventFeed");
+    if (!holder) return;
+    holder.replaceChildren();
+    const events = [
+      ...(receipt.files || []).map((file) => ({
+        kind: "file",
+        offset: file.last_modified_offset_ms,
+        title: file.id,
+        detail: statusLabel(file.verification),
+        alert: file.verification === "never_executed",
+      })),
+      ...(receipt.tests || []).map((test) => ({
+        kind: "test",
+        offset: test.offset_ms,
+        title: `${test.runner} test run`,
+        detail: test.result || "unparsed",
+        alert: test.result === "failed",
+      })),
+    ].sort((left, right) => (left.offset ?? Number.MAX_SAFE_INTEGER) - (right.offset ?? Number.MAX_SAFE_INTEGER));
+    for (const event of events) {
+      const card = document.createElement("div");
+      card.className = `event-card ${event.kind}${event.alert ? " alert" : ""}`;
+      const time = document.createElement("time");
+      time.textContent = ms(event.offset);
+      const dot = document.createElement("i");
+      dot.className = "event-dot";
+      const body = document.createElement("div");
+      const title = document.createElement("b");
+      const detail = document.createElement("span");
+      title.textContent = event.title;
+      detail.textContent = event.detail;
+      body.append(title, detail);
       card.append(time, dot, body);
-      feed.append(card);
+      holder.append(card);
     }
   }
 
-  function setIntegrityState(state, message) {
-    const badge = $("landingIntegrity");
-    badge.className = `integrity-state ${state}`;
-    badge.textContent = message;
-  }
+  function render(receipt, live, fallbackReason = "") {
+    const summary = receipt.summary || {};
+    const publication = receipt.publication || {};
+    const red = gap(receipt);
+    const lastPass = latestPassingTest(receipt);
+    const mode = live ? "LIVE PUBLISHED" : "CURATED SAMPLE";
+    const publicationLabel = live ? "Receipt / latest public feed" : "Receipt / safe fallback sample";
+    const source = live ? "evidence://public/live/latest" : "evidence://public/sample";
 
-  function render(manifest) {
-    const verifications = manifest.analysis.verification || [];
-    const gap = verifications.find((item) => item.status === "never_executed");
-    const finalTest = [...(manifest.timeline.test_executions || [])].filter((item) => item.result === "passed").sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp))).at(-1);
-    const finalBillingChange = (manifest.timeline.file_changes || []).find((item) => item.path === gap?.path);
-    const gapSeconds = finalTest && finalBillingChange ? relativeSeconds(finalBillingChange.last_modified_observed_at, manifest) - relativeSeconds(finalTest.timestamp, manifest) : null;
-    const expectedHash = manifest.integrity?.sha256 || "";
+    setText("evidenceMode", mode);
+    setText("evidenceLabel", publicationLabel);
+    setText("vaultTask", live ? "Latest GitHub Actions evidence" : "Curated recorded evidence");
+    setText("vaultSession", `${receipt.receipt?.id || "public receipt"} · ${receipt.receipt?.agent || "other"} agent · ${ms(receipt.receipt?.duration_ms)}`);
+    setText("fileMetric", String(summary.agent_changed_file_count || 0));
+    setText("testMetric", String(summary.test_run_count || 0));
+    setText("gapMetric", String(summary.never_executed_count || 0));
+    setText("hashShort", shortHash(receipt.integrity?.sha256));
+    setText("consoleMeta", live
+      ? `Latest GitHub Actions demo receipt · ${publication.published_at || "publish time unavailable"}`
+      : `Verified alias-only sample${fallbackReason ? " · live feed unavailable" : ""}`);
+    setText("consoleHash", `public projection sha256 ${shortHash(receipt.integrity?.sha256)}`);
+    setText("consoleSource", source);
+    setText("liveStatusNote", live
+      ? "A fresh, alias-only receipt was published by the trusted GitHub Actions demo workflow."
+      : "Live feed unavailable. Showing the separately verified, alias-only recorded sample.");
+    setReplayLinks(live);
 
-    text("vaultTask", manifest.meta.task || "Task was not recorded");
-    text("vaultSession", `${duration(manifest.meta.duration_seconds)} · ${manifest.timeline.command_count || 0} terminal commands · ${manifest.meta.agent || "other"}`);
-    text("fileMetric", String((manifest.final.changed_files || []).length));
-    text("testMetric", String((manifest.timeline.test_executions || []).length));
-    text("gapMetric", String(verifications.filter((item) => item.status === "never_executed").length));
-    text("hashShort", shortHash(expectedHash));
-    text("consoleHash", `sha256 ${shortHash(expectedHash)} · unsigned sample manifest`);
-    text("consoleMeta", `${manifest.meta.session_id} · ${manifest.meta.git_branch || "no branch"} · ${manifest.timeline.command_count || 0} observed commands`);
-
-    if (gap) {
-      text("redFindingPath", gap.path);
-      text("redFindingCopy", gapSeconds === null ? "No test execution was observed after its final edit." : `changed ${gapSeconds.toFixed(1)}s after the final passing test — no later test observed.`);
-      text("lateGap", gapSeconds === null ? "no later test" : `${gapSeconds.toFixed(1)}s after final test`);
-    }
-
-    renderVerification(manifest);
-    renderEventFeed(manifest);
-    setIntegrityState("pending", "ready to verify");
-
-    $("verifyLanding").addEventListener("click", async () => {
-      const button = $("verifyLanding");
-      button.disabled = true;
-      button.textContent = "Verifying receipt…";
-      try {
-        const actualHash = await browserHash(manifest);
-        if (actualHash === expectedHash) {
-          setIntegrityState("good", "sha256 verified");
-          button.textContent = "Receipt verified ✓";
-        } else {
-          setIntegrityState("bad", "hash mismatch");
-          button.textContent = "Hash mismatch";
-        }
-      } catch (error) {
-        setIntegrityState("bad", "use receipts verify");
-        button.textContent = "Web Crypto unavailable";
+    if (red) {
+      setText("redFindingPath", `${red.id} — NEVER EXECUTED`);
+      setText("redFindingCopy", "No passing test was observed after this source alias’s final edit.");
+      if (lastPass !== undefined && red.last_modified_offset_ms !== null && lastPass?.offset_ms !== null) {
+        const gapMs = Math.max(0, red.last_modified_offset_ms - lastPass.offset_ms);
+        setText("lateGap", `${(gapMs / 1000).toFixed(1)}s after final pass`);
+      } else {
+        setText("lateGap", "relative timing unavailable");
       }
-      button.disabled = false;
-    }, { once: true });
+    } else {
+      setText("redFindingPath", "No NEVER EXECUTED source alias");
+      setText("redFindingCopy", "This receipt has no source alias with a recorded verification gap.");
+      setText("lateGap", "no red finding");
+    }
+
+    renderVerification(receipt);
+    renderEvents(receipt);
+    const integrity = $("landingIntegrity");
+    if (integrity) {
+      integrity.className = "integrity-state good";
+      integrity.textContent = "browser hash verified";
+    }
+  }
+
+  async function verifyLanding(receipt) {
+    const button = $("verifyLanding");
+    const state = $("landingIntegrity");
+    if (!button || !state) return;
+    button.disabled = true;
+    button.textContent = "Verifying…";
+    try {
+      const actual = await browserHash(receipt);
+      if (actual !== receipt.integrity?.sha256) throw new Error("sha256 mismatch");
+      state.className = "integrity-state good";
+      state.textContent = "browser hash verified";
+      button.textContent = "Verified ✓";
+    } catch (error) {
+      state.className = "integrity-state bad";
+      state.textContent = "verification failed";
+      button.textContent = "Hash mismatch";
+    }
+    button.disabled = false;
   }
 
   async function boot() {
+    let receipt;
+    let live = true;
+    let reason = "";
     try {
-      const response = await fetch("sample-session.json", { cache: "no-store" });
-      if (!response.ok) throw new Error(`manifest request returned ${response.status}`);
-      render(await response.json());
+      receipt = await loadProjection(LIVE_RECEIPT_URL);
     } catch (error) {
-      text("vaultTask", "Sample evidence could not load");
-      text("vaultSession", "Serve this page through the deployed demo or run receipts demo locally.");
-      text("redFindingPath", "Evidence unavailable");
-      text("redFindingCopy", "The viewer never substitutes guessed data when a manifest cannot be read.");
-      text("consoleMeta", "The manifest did not load; no evidence was fabricated.");
-      setIntegrityState("bad", "manifest unavailable");
+      live = false;
+      reason = error instanceof Error ? error.message : "unavailable";
+      try {
+        receipt = await loadProjection(FALLBACK_RECEIPT_URL);
+      } catch (fallbackError) {
+        setText("vaultTask", "Public evidence unavailable");
+        setText("vaultSession", "Neither the live feed nor the safe sample passed browser verification.");
+        setText("liveStatusNote", "Do not rely on this page until a verified public projection is available.");
+        return;
+      }
     }
+    render(receipt, live, reason);
+    $("verifyLanding")?.addEventListener("click", () => verifyLanding(receipt));
   }
 
   boot();

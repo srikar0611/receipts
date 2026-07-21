@@ -42,11 +42,13 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Publish only the curated static demo
+      - name: Publish curated static demo without touching the live evidence prefix
         shell: bash
         run: |
           set -euo pipefail
-          aws s3 sync docs/ "s3://$AWS_DEMO_BUCKET/" --delete --cache-control "no-cache" --only-show-errors
+          # `live/*` belongs to a separate OIDC role.  Excluding it matters even
+          # with --delete: normal site updates must never erase a current feed.
+          aws s3 sync docs/ "s3://$AWS_DEMO_BUCKET/" --delete --exclude "live/*" --cache-control "no-cache" --only-show-errors
           aws cloudfront create-invalidation \
             --distribution-id "$AWS_CLOUDFRONT_DISTRIBUTION_ID" \
             --paths "/*" \

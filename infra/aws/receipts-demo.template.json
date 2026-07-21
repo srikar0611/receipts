@@ -134,7 +134,24 @@
             ],
             "Compress": true,
             "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6"
-          }
+          },
+          "CacheBehaviors": [
+            {
+              "PathPattern": "live/*",
+              "TargetOriginId": "ReceiptsPrivateS3Origin",
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "AllowedMethods": [
+                "GET",
+                "HEAD"
+              ],
+              "CachedMethods": [
+                "GET",
+                "HEAD"
+              ],
+              "Compress": true,
+              "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+            }
+          ]
         }
       }
     },
@@ -252,12 +269,100 @@
                   }
                 },
                 {
+                  "Sid": "DenyLiveFeedObjectsToSiteDeployer",
+                  "Effect": "Deny",
+                  "Action": [
+                    "s3:DeleteObject",
+                    "s3:GetObject",
+                    "s3:PutObject"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${DemoBucket.Arn}/live/*"
+                  }
+                },
+                {
                   "Sid": "InvalidateOnlyThisDistribution",
                   "Effect": "Allow",
                   "Action": "cloudfront:CreateInvalidation",
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${DemoDistribution}"
                   }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "receipts"
+          }
+        ]
+      }
+    },
+    "GitHubLiveFeedPublisherRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "Description": "Prefix-scoped GitHub Actions role for publishing only the sanitized latest Receipts live evidence feed.",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": {
+                  "Fn::If": [
+                    "CreateGitHubOidcProvider",
+                    {
+                      "Ref": "GitHubOidcProvider"
+                    },
+                    {
+                      "Ref": "ExistingGitHubOidcProviderArn"
+                    }
+                  ]
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                  "token.actions.githubusercontent.com:sub": {
+                    "Ref": "GitHubOidcSubject"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "PublishOnlyLatestPublicReceiptsEvidence",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadOnlyBucketLocation",
+                  "Effect": "Allow",
+                  "Action": "s3:GetBucketLocation",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "DemoBucket",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Sid": "PutOnlyLatestSanitizedFeedObjects",
+                  "Effect": "Allow",
+                  "Action": "s3:PutObject",
+                  "Resource": [
+                    {
+                      "Fn::Sub": "${DemoBucket.Arn}/live/latest.json"
+                    },
+                    {
+                      "Fn::Sub": "${DemoBucket.Arn}/live/latest.html"
+                    }
+                  ]
                 }
               ]
             }
@@ -296,6 +401,15 @@
       "Value": {
         "Fn::GetAtt": [
           "GitHubDemoDeployRole",
+          "Arn"
+        ]
+      }
+    },
+    "GitHubLiveFeedPublisherRoleArn": {
+      "Description": "Role ARN for the separate GitHub Actions workflow that can publish only live/latest.json and live/latest.html.",
+      "Value": {
+        "Fn::GetAtt": [
+          "GitHubLiveFeedPublisherRole",
           "Arn"
         ]
       }

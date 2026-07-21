@@ -1,0 +1,93 @@
+name: Publish live Receipts evidence
+
+on:
+  workflow_dispatch:
+
+# This workflow is intentionally manual and master-only.  It creates a fresh
+# synthetic demo receipt on a trusted runner, verifies it locally, projects it
+# to safe aliases, and can write only two fixed public objects.  It never
+# uploads a raw .receipts manifest or terminal transcript.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: receipts-live-feed
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Capture and publish a sanitized live demo receipt
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_LIVE_FEED_ROLE_TO_ASSUME: ${{ vars.AWS_LIVE_FEED_ROLE_TO_ASSUME }}
+      AWS_DEMO_BUCKET: ${{ vars.AWS_DEMO_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Require live-feed repository configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for required in AWS_REGION AWS_LIVE_FEED_ROLE_TO_ASSUME AWS_DEMO_BUCKET; do
+            test -n "${!required}" || { echo "Missing GitHub Actions variable: $required" >&2; exit 1; }
+          done
+
+      - name: Install Receipts and record a fresh PTY proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install .
+          receipts demo --live | tee "$RUNNER_TEMP/live-proof.log"
+          manifest="$(sed -n 's/^Fresh manifest: //p' "$RUNNER_TEMP/live-proof.log" | tail -n 1)"
+          test -n "$manifest" && test -f "$manifest"
+          receipts verify "$manifest"
+          printf '%s\n' "$manifest" > "$RUNNER_TEMP/source-manifest-path"
+
+      - name: Create and verify alias-only public evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(cat "$RUNNER_TEMP/source-manifest-path")"
+          published_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          receipts export-public "$manifest" \
+            --output "$RUNNER_TEMP/latest.json" \
+            --replay-output "$RUNNER_TEMP/latest.html" \
+            --landing-href ../index.html \
+            --publication-kind github-actions-demo \
+            --published-at "$published_at"
+          receipts verify "$RUNNER_TEMP/latest.json"
+          test ! -e "$RUNNER_TEMP/latest.log"
+
+      - name: Obtain prefix-scoped AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_LIVE_FEED_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Publish only latest sanitized feed objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache_control="no-store, max-age=0, must-revalidate"
+          aws s3api put-object \
+            --bucket "$AWS_DEMO_BUCKET" \
+            --key live/latest.json \
+            --body "$RUNNER_TEMP/latest.json" \
+            --content-type application/json \
+            --cache-control "$cache_control" \
+            --no-cli-pager >/dev/null
+          aws s3api put-object \
+            --bucket "$AWS_DEMO_BUCKET" \
+            --key live/latest.html \
+            --body "$RUNNER_TEMP/latest.html" \
+            --content-type text/html \
+            --cache-control "$cache_control" \
+            --no-cli-pager >/dev/null
+          echo "Published a fresh sanitized public receipt at /live/latest.html"

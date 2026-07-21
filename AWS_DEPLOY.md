@@ -2,11 +2,17 @@
 
 This is an optional public showcase for the curated files in `docs/`. It does **not** upload a user's `.receipts/` directory, raw agent transcripts, source code, or an API key. Receipts itself remains offline-first.
 
+M11 adds a separate, manual **live evidence feed**. It records a fresh synthetic demo session on a trusted GitHub Actions runner, verifies the private source receipt, then publishes only an alias-only public projection at `live/latest.json` plus its safe replay at `live/latest.html`. It is not a user-data SaaS or a terminal stream.
+
 The deployed path is:
 
 ```text
-GitHub push → short-lived GitHub OIDC token → scoped AWS role
-           → private S3 bucket → CloudFront HTTPS URL
+GitHub push → short-lived GitHub OIDC token → site deploy role
+           → private S3 bucket → CloudFront HTTPS dashboard
+
+Manual GitHub Actions run → separate prefix-scoped OIDC role
+                          → `live/latest.{json,html}` only
+                          → CloudFront HTTPS live feed
 ```
 
 The S3 bucket is private. CloudFront is its only permitted reader; there is no public S3 website endpoint and no always-on server.
@@ -94,7 +100,7 @@ aws cloudformation describe-stacks \
 
 `DemoUrl` is the public HTTPS link. It uses CloudFront's default `*.cloudfront.net` certificate; a custom domain is intentionally deferred until after the hackathon.
 
-## 5. Configure four GitHub repository variables
+## 5. Configure five GitHub repository variables
 
 In **GitHub repository → Settings → Secrets and variables → Actions → Variables**, add the values from the stack outputs:
 
@@ -102,14 +108,15 @@ In **GitHub repository → Settings → Secrets and variables → Actions → Va
 |---|---|
 | `AWS_REGION` | `ap-south-1` (or the region you chose) |
 | `AWS_ROLE_TO_ASSUME` | `GitHubDeployRoleArn` |
+| `AWS_LIVE_FEED_ROLE_TO_ASSUME` | `GitHubLiveFeedPublisherRoleArn` |
 | `AWS_DEMO_BUCKET` | `DemoBucketName` |
 | `AWS_CLOUDFRONT_DISTRIBUTION_ID` | `CloudFrontDistributionId` |
 
 These are identifiers, not secrets. The workflow never stores `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` in GitHub.
 
-## 6. Deploy and verify
+## 6. Deploy the safe dashboard and verify
 
-Push the M6 commit to `master`, or open **Actions → Deploy Receipts demo to AWS → Run workflow**. The workflow uploads only `docs/`, then creates a CloudFront invalidation so judges do not see stale content.
+Push the M11 commit to `master`, or open **Actions → Deploy Receipts demo to AWS → Run workflow**. The workflow uploads only `docs/`, deliberately excludes `live/*`, then creates a CloudFront invalidation so judges do not see stale dashboard assets. The ordinary site role is explicitly denied `live/*`, so it cannot erase a fresh feed by accident.
 
 After the distribution finishes deploying, verify both the public demo and the private origin:
 
@@ -126,6 +133,30 @@ aws s3api get-bucket-policy-status \
 
 The final command must print `False`.
 
+## 7. Publish a fresh live evidence receipt
+
+First update the existing stack with the M11 CloudFormation template and add `AWS_LIVE_FEED_ROLE_TO_ASSUME` from the new stack output. Then, from the `master` branch in GitHub, open **Actions → Publish live Receipts evidence → Run workflow**.
+
+That workflow:
+
+1. runs `receipts demo --live` inside an Ubuntu GitHub runner, exercising the real PTY capture path;
+2. runs `receipts verify` against the resulting private manifest;
+3. runs `receipts export-public`, which removes task text, paths, commands, Git metadata, transcript information, and all source-path mappings;
+4. verifies the new public projection's own SHA-256; and
+5. assumes the separate live-feed role and overwrites only `live/latest.json` and `live/latest.html`.
+
+No raw source manifest or log is uploaded. The normal deploy role has an explicit deny for `live/*`; the live role has only `s3:PutObject` for the two fixed latest keys. CloudFront's `live/*` behavior uses AWS's managed **CachingDisabled** policy and the objects set `Cache-Control: no-store`, so no CloudFront invalidation is needed for a feed publication.
+
+Verify after the action succeeds:
+
+```bash
+curl -fsS 'https://YOUR_CLOUDFRONT_DOMAIN/live/latest.json' > latest.json
+receipts verify latest.json
+curl -fsS 'https://YOUR_CLOUDFRONT_DOMAIN/live/latest.html' | grep -q 'Alias-only evidence projection'
+```
+
+Refresh the root CloudFront URL. The dashboard should say **LIVE PUBLISHED** and link to `/live/latest.html`. Before the first manual publication—or if a public projection fails browser hash verification—it visibly falls back to the checked-in alias-only sample rather than guessing.
+
 ## Cleanup
 
 Keep the demo only while you need it. CloudFormation cannot delete a non-empty S3 bucket. After verifying the exact bucket name from the stack output, these commands permanently delete the hosted static files and then remove the stack:
@@ -141,3 +172,4 @@ aws cloudformation wait stack-delete-complete --stack-name receipts-demo --regio
 - AWS [documents Origin Access Control](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html) as the way to keep an S3 origin private while CloudFront serves content.
 - GitHub [documents OIDC for AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws) so the workflow can receive short-lived credentials instead of storing long-lived keys.
 - The default CloudFront domain gives HTTPS without buying a domain or introducing certificate-management work.
+- The live-feed cache behavior uses CloudFront's managed CachingDisabled policy only for `live/*`; the normal static dashboard keeps the lower-cost optimized cache behavior.

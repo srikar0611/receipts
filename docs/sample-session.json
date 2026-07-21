@@ -1,284 +1,76 @@
 {
-  "analysis": {
-    "network_egress": [],
-    "risk_hints": [
-      {
-        "path": "src/auth/login.py",
-        "reason": "sensitive auth path"
-      },
-      {
-        "path": "src/auth/session.py",
-        "reason": "sensitive auth path"
-      },
-      {
-        "path": "src/billing/invoice.py",
-        "reason": "sensitive billing path"
-      }
-    ],
-    "scope_drift": [
-      {
-        "path": "src/billing/invoice.py",
-        "reason": "heuristic: path has no token overlap with stated task"
-      }
-    ],
-    "verification": [
-      {
-        "path": "src/auth/login.py",
-        "status": "verified",
-        "test_command": "python3 -m pytest -q tests/test_login.py",
-        "test_timestamp": "2026-07-19T18:31:05.137Z"
-      },
-      {
-        "path": "src/auth/session.py",
-        "status": "indirectly_exercised",
-        "test_command": "python3 -m pytest -q tests/test_login.py",
-        "test_timestamp": "2026-07-19T18:31:05.137Z"
-      },
-      {
-        "path": "src/billing/invoice.py",
-        "status": "never_executed",
-        "test_command": "",
-        "test_timestamp": ""
-      }
-    ]
-  },
-  "artifacts": {
-    "clean_transcript": "session-20260719T183055Z-520f2fea.clean.log",
-    "raw_transcript": "session-20260719T183055Z-520f2fea.log"
-  },
-  "final": {
-    "changed_files": [
-      {
-        "additions": 7,
-        "deletions": 0,
-        "path": "src/auth/__pycache__/login.cpython-312.pyc"
-      },
-      {
-        "additions": 2,
-        "deletions": 0,
-        "path": "src/auth/login.py"
-      },
-      {
-        "additions": 2,
-        "deletions": 0,
-        "path": "src/auth/session.py"
-      },
-      {
-        "additions": 2,
-        "deletions": 0,
-        "path": "src/billing/invoice.py"
-      },
-      {
-        "additions": 34,
-        "deletions": 0,
-        "path": "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc"
-      },
-      {
-        "additions": 5,
-        "deletions": 0,
-        "path": "tests/test_login.py"
-      }
-    ]
-  },
+  "files": [
+    {
+      "additions": 2,
+      "deletions": 0,
+      "id": "file-001",
+      "last_modified_offset_ms": 2024,
+      "preexisting_at_start": false,
+      "risk_categories": [
+        "sensitive_path"
+      ],
+      "verification": "verified"
+    },
+    {
+      "additions": 2,
+      "deletions": 0,
+      "id": "file-002",
+      "last_modified_offset_ms": 8028,
+      "preexisting_at_start": false,
+      "risk_categories": [
+        "sensitive_path"
+      ],
+      "verification": "indirectly_exercised"
+    },
+    {
+      "additions": 2,
+      "deletions": 0,
+      "id": "file-003",
+      "last_modified_offset_ms": 12742,
+      "preexisting_at_start": false,
+      "risk_categories": [
+        "sensitive_path",
+        "scope_drift"
+      ],
+      "verification": "never_executed"
+    }
+  ],
+  "format": "receipts-public-feed/v1",
   "integrity": {
-    "sha256": "34d0ea727449cffa680d2576979779a472893966ecbbcc01552b9bb3786eff76"
+    "sha256": "800928775dc0e97ecd73129fff75e3df5764095fcec70976323b2adb541acbaa"
   },
-  "meta": {
+  "public_schema_version": 1,
+  "publication": {
+    "kind": "curated-sample",
+    "privacy": "source paths, task, commands, git data, and transcripts withheld"
+  },
+  "receipt": {
     "agent": "other",
-    "base_commit": "476be0ae388e3ce882fef88310b36418e58e63dc",
-    "command": [
-      "sh",
-      "/mnt/c/Users/srika/Documents/Codex/2026-07-19/app-6a330a7730c081919892632d5baaec58-plugin-app-6a330a7730c081919892632d5baaec58-2/tools/fake_agent.sh"
-    ],
-    "command_display": "sh /mnt/c/Users/srika/Documents/Codex/2026-07-19/app-6a330a7730c081919892632d5baaec58-plugin-app-6a330a7730c081919892632d5baaec58-2/tools/fake_agent.sh",
-    "cwd": "/tmp/tmp.BmtsCUOCB8",
-    "duration_seconds": 12.773,
-    "ended_at": "2026-07-19T18:31:08.472Z",
-    "git_branch": "master",
-    "git_note_attached": true,
-    "session_id": "20260719T183055Z-520f2fea",
-    "started_at": "2026-07-19T18:30:55.730Z",
-    "task": "fix the login bug",
-    "transcript_truncated": false
+    "duration_ms": 12773,
+    "id": "receipt-13fdef8a2124a5fb",
+    "path_mode": "aliased",
+    "time_mode": "relative_offsets_only"
   },
-  "schema_version": 1,
-  "timeline": {
+  "summary": {
+    "agent_changed_file_count": 3,
     "command_count": 11,
-    "file_changes": [
-      {
-        "first_touched_at": "2026-07-19T18:31:01.756Z",
-        "last_diff_sha256": "5136cd601f09280840eafcb542aa5b87f1a32513e57b955c7fef8f34cf67b3b3",
-        "last_modified_observed_at": "2026-07-19T18:31:01.756Z",
-        "path": "src/auth/__pycache__/login.cpython-312.pyc"
-      },
-      {
-        "first_touched_at": "2026-07-19T18:30:57.754Z",
-        "last_diff_sha256": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-        "last_modified_observed_at": "2026-07-19T18:30:57.754Z",
-        "path": "src/auth/login.py"
-      },
-      {
-        "first_touched_at": "2026-07-19T18:31:03.758Z",
-        "last_diff_sha256": "f76ed9a41982bb35064b43db582369a078f5d3fa907c71e75de5590be128fe17",
-        "last_modified_observed_at": "2026-07-19T18:31:03.758Z",
-        "path": "src/auth/session.py"
-      },
-      {
-        "first_touched_at": "2026-07-19T18:31:08.472Z",
-        "last_diff_sha256": "a49ab522716f6f5b6cde88ed9c15ec298c85e807c65da5e12c31a570b0a48375",
-        "last_modified_observed_at": "2026-07-19T18:31:08.472Z",
-        "path": "src/billing/invoice.py"
-      },
-      {
-        "first_touched_at": "2026-07-19T18:31:01.756Z",
-        "last_diff_sha256": "798b63b65e5d33c288ea8285114e2205044770e1d018aa76f55e04217714bf4d",
-        "last_modified_observed_at": "2026-07-19T18:31:01.756Z",
-        "path": "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc"
-      },
-      {
-        "first_touched_at": "2026-07-19T18:30:57.754Z",
-        "last_diff_sha256": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02",
-        "last_modified_observed_at": "2026-07-19T18:30:57.754Z",
-        "path": "tests/test_login.py"
-      }
-    ],
-    "git_snapshots": [
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:30:55.730Z",
-        "path_diff_sha256": {},
-        "paths": []
-      },
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:30:57.754Z",
-        "path_diff_sha256": {
-          "src/auth/login.py": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-          "tests/test_login.py": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02"
-        },
-        "paths": [
-          "src/auth/login.py",
-          "tests/test_login.py"
-        ]
-      },
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:30:59.755Z",
-        "path_diff_sha256": {
-          "src/auth/login.py": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-          "tests/test_login.py": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02"
-        },
-        "paths": [
-          "src/auth/login.py",
-          "tests/test_login.py"
-        ]
-      },
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:31:01.756Z",
-        "path_diff_sha256": {
-          "src/auth/__pycache__/login.cpython-312.pyc": "5136cd601f09280840eafcb542aa5b87f1a32513e57b955c7fef8f34cf67b3b3",
-          "src/auth/login.py": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc": "798b63b65e5d33c288ea8285114e2205044770e1d018aa76f55e04217714bf4d",
-          "tests/test_login.py": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02"
-        },
-        "paths": [
-          "src/auth/__pycache__/login.cpython-312.pyc",
-          "src/auth/login.py",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc",
-          "tests/test_login.py"
-        ]
-      },
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:31:03.758Z",
-        "path_diff_sha256": {
-          "src/auth/__pycache__/login.cpython-312.pyc": "5136cd601f09280840eafcb542aa5b87f1a32513e57b955c7fef8f34cf67b3b3",
-          "src/auth/login.py": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-          "src/auth/session.py": "f76ed9a41982bb35064b43db582369a078f5d3fa907c71e75de5590be128fe17",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc": "798b63b65e5d33c288ea8285114e2205044770e1d018aa76f55e04217714bf4d",
-          "tests/test_login.py": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02"
-        },
-        "paths": [
-          "src/auth/__pycache__/login.cpython-312.pyc",
-          "src/auth/login.py",
-          "src/auth/session.py",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc",
-          "tests/test_login.py"
-        ]
-      },
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:31:05.759Z",
-        "path_diff_sha256": {
-          "src/auth/__pycache__/login.cpython-312.pyc": "5136cd601f09280840eafcb542aa5b87f1a32513e57b955c7fef8f34cf67b3b3",
-          "src/auth/login.py": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-          "src/auth/session.py": "f76ed9a41982bb35064b43db582369a078f5d3fa907c71e75de5590be128fe17",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc": "798b63b65e5d33c288ea8285114e2205044770e1d018aa76f55e04217714bf4d",
-          "tests/test_login.py": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02"
-        },
-        "paths": [
-          "src/auth/__pycache__/login.cpython-312.pyc",
-          "src/auth/login.py",
-          "src/auth/session.py",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc",
-          "tests/test_login.py"
-        ]
-      },
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:31:07.759Z",
-        "path_diff_sha256": {
-          "src/auth/__pycache__/login.cpython-312.pyc": "5136cd601f09280840eafcb542aa5b87f1a32513e57b955c7fef8f34cf67b3b3",
-          "src/auth/login.py": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-          "src/auth/session.py": "f76ed9a41982bb35064b43db582369a078f5d3fa907c71e75de5590be128fe17",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc": "798b63b65e5d33c288ea8285114e2205044770e1d018aa76f55e04217714bf4d",
-          "tests/test_login.py": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02"
-        },
-        "paths": [
-          "src/auth/__pycache__/login.cpython-312.pyc",
-          "src/auth/login.py",
-          "src/auth/session.py",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc",
-          "tests/test_login.py"
-        ]
-      },
-      {
-        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "observed_at": "2026-07-19T18:31:08.472Z",
-        "path_diff_sha256": {
-          "src/auth/__pycache__/login.cpython-312.pyc": "5136cd601f09280840eafcb542aa5b87f1a32513e57b955c7fef8f34cf67b3b3",
-          "src/auth/login.py": "0cc607727508c399d705c01d12e15e68f5a0044c8492ce05c7150a6bf82b0e12",
-          "src/auth/session.py": "f76ed9a41982bb35064b43db582369a078f5d3fa907c71e75de5590be128fe17",
-          "src/billing/invoice.py": "a49ab522716f6f5b6cde88ed9c15ec298c85e807c65da5e12c31a570b0a48375",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc": "798b63b65e5d33c288ea8285114e2205044770e1d018aa76f55e04217714bf4d",
-          "tests/test_login.py": "a5e92c15e7b3a55349668eb63431f11d3985b891ff834b005ec14aa43043fd02"
-        },
-        "paths": [
-          "src/auth/__pycache__/login.cpython-312.pyc",
-          "src/auth/login.py",
-          "src/auth/session.py",
-          "src/billing/invoice.py",
-          "tests/__pycache__/test_login.cpython-312-pytest-9.1.1.pyc",
-          "tests/test_login.py"
-        ]
-      }
-    ],
-    "notable_commands": [],
-    "test_executions": [
-      {
-        "command": "python3 -m pytest -q tests/test_login.py",
-        "result": "passed",
-        "summary": "1 passed in 0.01s",
-        "timestamp": "2026-07-19T18:30:58.765Z"
-      },
-      {
-        "command": "python3 -m pytest -q tests/test_login.py",
-        "result": "passed",
-        "summary": "1 passed in 0.01s",
-        "timestamp": "2026-07-19T18:31:05.137Z"
-      }
-    ]
-  }
+    "network_egress_observed": false,
+    "never_executed_count": 1,
+    "preexisting_dirty_count": 0,
+    "test_run_count": 2
+  },
+  "tests": [
+    {
+      "id": "test-001",
+      "offset_ms": 3035,
+      "result": "passed",
+      "runner": "pytest"
+    },
+    {
+      "id": "test-002",
+      "offset_ms": 9407,
+      "result": "passed",
+      "runner": "pytest"
+    }
+  ]
 }
-
